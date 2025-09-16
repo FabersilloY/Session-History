@@ -4,30 +4,36 @@
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Linux-lightgrey.svg)]()
 
-> **SESHIS** (*Session Statistics*) is a powerful command-line tool for analyzing electric vehicle (EV) charging session data from PowerFlex API endpoints. It provides comprehensive insights into charging patterns, identifies problematic sessions, and generates visual reports to help optimize EV charging infrastructure performance.
+> **SESHIS** (*Session Statistics*) is a powerful command-line tool for analyzing electric vehicle (EV) charging session data from PowerFlex API endpoints. It provides comprehensive insights into charging patterns, identifies problematic sessions, analyzes user behavior, and generates visual reports to help optimize EV charging infrastructure performance.
 
 ## 🌟 Features
 
 ### 📊 **Comprehensive Analysis**
 - **Empty Sessions Analysis**: Identify and analyze sessions with 0 kWh energy delivery
 - **Microsessions Analysis**: Detect sessions with minimal energy delivery (configurable threshold)
+- **User Session Analysis**: Analyze sessions grouped by user with detailed session information and performance metrics
 - **Combined Reports**: Get holistic view of charging session quality
 - **Daily Breakdowns**: Track performance trends over time
 
 ### 📈 **Visual Reporting**
 - **Interactive Graphs**: Generate matplotlib charts showing daily percentages
+- **Color-Coded Performance**: Visual indicators for session quality (Green/Orange/Red)
 - **Trend Analysis**: Visualize empty/micro session patterns over time
 - **Professional Charts**: Publication-ready graphs with proper formatting
 
 ### 🛠️ **Flexible Configuration**
 - **Multiple Date Ranges**: Today, last week, last month, or custom date ranges
 - **Customizable Thresholds**: Set your own microsession energy thresholds
+- **User Filtering**: Analyze all users or focus on specific email addresses
+- **Streamlined Interface**: Use `--advanced` flag for full control or simplified defaults
 - **API Parameters**: Full control over sorting, pagination, and filtering
 - **Debug Mode**: Comprehensive logging for troubleshooting
 
 ### 🚀 **Automation Ready**
 - **No-Prompt Mode**: Use `--printsessions` for automated workflows
+- **Streamlined Mode**: Default mode skips advanced prompts for faster execution
 - **Conditional Outputs**: Control exactly what gets displayed
+- **Color-Coded Results**: Visual performance indicators for quick assessment
 - **Script-Friendly**: Perfect for CI/CD pipelines and monitoring systems
 
 ---
@@ -84,6 +90,8 @@ python3 seshis.py [OPTIONS]
 |------|-------------|---------|
 | `--empty` | Analyze empty sessions (0 kWh) | `--empty` |
 | `--micro` | Analyze microsessions (0 < kWh < threshold) | `--micro` |
+| `--user` | Analyze sessions per user (optional: specify email) | `--user` or `--user user@example.com` |
+| `--advanced` | Enable advanced prompts (anonymize, sorting, etc.) | `--advanced` |
 | `--graph` | Generate and display visual charts | `--graph` |
 | `--printsessions` | Auto-print session details (no prompts) | `--printsessions` |
 | `--debug` | Enable comprehensive debug logging | `--debug` |
@@ -106,6 +114,18 @@ python3 seshis.py --micro
 ```
 *Prompts for threshold (e.g., 1.0 kWh) and analyzes sessions below that threshold*
 
+**User Session Analysis**
+```bash
+python3 seshis.py --user
+```
+*Shows all users and their sessions with detailed information including duration and performance*
+
+**Specific User Analysis**
+```bash
+python3 seshis.py --user vera.combatvet@gmail.com
+```
+*Shows only sessions for the specified user with color-coded performance indicators*
+
 ### 📊 **Combined Analysis**
 
 **Complete Quality Report**
@@ -113,6 +133,12 @@ python3 seshis.py --micro
 python3 seshis.py --empty --micro --graph
 ```
 *Comprehensive analysis with visual charts showing both empty and micro sessions*
+
+**User Performance Overview**
+```bash
+python3 seshis.py --user --debug
+```
+*Color-coded user analysis with performance calculations and debug information*
 
 **Automation-Ready Report**
 ```bash
@@ -122,11 +148,23 @@ python3 seshis.py --empty --micro --printsessions
 
 ### 🛠️ **Advanced Usage**
 
+**Advanced Configuration Mode**
+```bash
+python3 seshis.py --user --advanced
+```
+*Enables all configuration prompts for full control over API parameters*
+
 **Debug Mode**
 ```bash
 python3 seshis.py --empty --micro --graph --debug
 ```
 *Detailed logging showing API calls, data processing, and analysis steps*
+
+**Multi-User Performance Analysis**
+```bash
+python3 seshis.py --user --graph --debug
+```
+*Color-coded user analysis with performance calculations and debug information*
 
 **Raw Session Data**
 ```bash
@@ -152,6 +190,15 @@ Enter microsession threshold (kWh, e.g., 1.0): [THRESHOLD]
 ```
 
 ### ⚙️ **API Parameters**
+
+**Default Mode** *(streamlined - uses defaults)*:
+```
+Limit (default: 25): [NUMBER]
+Page (default: 1): [NUMBER]
+```
+*Automatically uses: anonymize=false, includeActive=false, sortBy=session_start_time, sortOrder=DESC*
+
+**Advanced Mode** *(when using --advanced flag)*:
 ```
 Anonymize? (true/false, default: false): [true/false]
 Include active sessions? (true/false, default: false): [true/false]
@@ -206,11 +253,32 @@ Choose date range (1-4, default: 1): [1-4]
 ==================================================
 🔍 COMBINED SUMMARY
 ==================================================
+🏢 Site: Downtown Charging Hub
 📊 Total sessions analyzed: 1000
 ⚡ Empty sessions (0 kWh): 651 (65.1%)
 🔬 Microsessions (0 < kWh < 1.0): 3 (0.3%)
 🎯 Combined (empty + micro): 654 (65.4%)
 ✅ Normal sessions (>= 1.0 kWh): 346 (34.6%)
+```
+
+### 👥 User Session Analysis
+```
+👥 User Session Summary:
+📊 Total unique users: 15
+
+User: null
+    Total sessions: 42
+
+User: vera.combatvet@gmail.com
+    Total sessions: 8
+    Session 1: START: 2025-09-15 07:12:27 / END: 2025-09-15 07:13:13 / DURATION: 46.0s / 0.0221 kWh / 0101110106_2025-09-12...
+    Session 2: START: 2025-09-12 16:16:48 / END: 2025-09-13 00:44:54 / DURATION: 8.5h / 12.763 kWh / 0101110102_2025-08-20...
+    ...
+
+User: john.doe@example.com
+    Total sessions: 3
+    Session 1: START: 2025-08-20 19:29:13 / END: 2025-08-21 00:21:03 / DURATION: 4.9h / 12.76309 kWh / 0101110102_2025-08-20...
+    ...
 ```
 
 ---
@@ -229,6 +297,19 @@ When using the `--graph` flag, SESHIS generates professional matplotlib charts:
 ### 📊 **Chart Types**
 1. **Daily Empty Session Percentage** - Tracks empty session trends
 2. **Daily Microsession Percentage** - Shows low-energy session patterns
+
+### 🎨 **Color-Coded Session Analysis**
+
+When using the `--user` flag, sessions are displayed with color coding based on charging performance:
+
+- **🟢 Green**: High performance sessions (≥16A average) - Optimal charging
+- **🟡 Orange**: Medium performance sessions (8-15.9A average) - Acceptable charging  
+- **🔴 Red**: Poor performance sessions (<8A average) - Potential issues
+
+**Performance Calculation**: 
+- Average Power = `kWh ÷ duration (hours)`
+- Average Amperage = `watts ÷ 208V`
+- Color assigned based on calculated amperage vs. minimum 8A fallback rate
 
 ---
 
@@ -262,26 +343,23 @@ Enable comprehensive logging with the `--debug` flag:
 - **API Calls**: Complete URLs and curl commands
 - **Data Processing**: JSON parsing, session extraction, filtering
 - **Analysis Steps**: Detailed breakdown of calculations
+- **Performance Metrics**: Amperage calculations for user sessions
 - **Error Context**: Full error details with stack traces
 
 ### 💡 **Debug Example**
 ```bash
-python3 seshis.py --empty --debug
+python3 seshis.py --user --debug
 ```
 
 ```
 🔧 Debug mode enabled
-🔧 Arguments parsed: {'empty': True, 'micro': False, 'graph': False, 'printsessions': False, 'debug': True}
+🔧 Arguments parsed: {'user': 'all', 'empty': False, 'micro': False, 'advanced': False, 'graph': False, 'printsessions': False, 'debug': True}
 🔧 ACN: 0021, Account: 16
-🔧 Date range: 2025-09-11 00:00:00 to 2025-09-11 21:22:57.123456
-🔧 Timestamp range: 1726012800000 to 1726089777123
-🔧 API URL: https://api.powerflex.io/v1/public/sessions/acn/0021?acc=16&...
-🔧 Running: curl_device_manager.sh -s -X GET "..." -H "accept: application/json"
-🔧 Raw API response length: 15432 characters
-🔧 JSON parsed successfully, type: <class 'dict'>
-🔧 Extracted 1000 sessions from 'rows' key
-🔧 Starting empty sessions analysis...
-🔧 Empty analysis - Total: 1000, Valid: 1000, Empty: 651
+🔧 Using default advanced options: anonymize=false, include_active=false, sort_by=session_start_time, sort_order=DESC
+🔧 Date range: 2025-09-16 00:00:00 to 2025-09-16 21:22:57.123456
+🔧 Starting user session analysis (filter: all)...
+🔧 Session 1 calculations: 8.47h, 2.6W, 0.01A
+🔧 Session 2 calculations: 4.90h, 2603.2W, 12.5A
 ```
 
 ---
@@ -303,10 +381,10 @@ which curl_device_manager.sh
 python3 seshis.py --empty --debug
 ```
 
-**3. "Unexpected API response format"**
+**3. "User 'email@domain.com' not found"**
 ```bash
-# API might have changed format - check with debug mode
-python3 seshis.py --debug
+# Run --user without email to see available users
+python3 seshis.py --user
 ```
 
 **4. "matplotlib not found"**
@@ -328,14 +406,16 @@ pip install matplotlib
 
 | Combination | Behavior | Use Case |
 |-------------|----------|----------|
-| `--empty` | Empty session analysis + daily breakdown + prompt for details | Basic empty session investigation |
-| `--micro` | Microsession analysis + threshold input + daily breakdown + prompt | Basic microsession investigation |
-| `--empty --micro` | Both analyses + combined summary + two prompts | Complete session quality assessment |
+| `--empty` | Empty session analysis + daily breakdown | Basic empty session investigation |
+| `--micro` | Microsession analysis + threshold input | Basic microsession investigation |
+| `--user` | All users session analysis + color-coded performance | User behavior and performance analysis |
+| `--user email@domain.com` | Single user analysis + color-coded sessions | Individual user troubleshooting |
+| `--advanced` | Enables all configuration prompts | Full API parameter control |
+| `--empty --micro` | Both analyses + combined summary | Complete session quality assessment |
 | `--empty --graph` | Empty analysis + chart display | Visual empty session trends |
-| `--empty --printsessions` | Empty analysis + auto-print details (no prompt) | Automated empty session reporting |
-| `--empty --micro --graph` | Full analysis + both charts | Complete visual quality report |
-| `--empty --micro --printsessions` | Full analysis + auto-print details | Automated comprehensive reporting |
-| `--empty --micro --graph --printsessions` | Complete analysis with all features | Maximum information output |
+| `--user --advanced` | User analysis + full configuration options | Advanced user performance analysis |
+| `--empty --printsessions` | Empty analysis + auto-print details | Automated empty session reporting |
+| `--user --debug` | User analysis + performance calculations shown | User performance troubleshooting |
 | `--debug` (with any combo) | Adds comprehensive debug logging | Troubleshooting and development |
 | *(no flags)* | Raw JSON session dump | Data export and integration |
 
@@ -348,6 +428,9 @@ pip install matplotlib
 # Morning report - check overnight session quality
 python3 seshis.py --empty --micro --graph > daily_report.log
 
+# User performance overview with color coding
+python3 seshis.py --user > user_performance.log
+
 # Extract specific problematic sessions for investigation
 python3 seshis.py --empty --printsessions > empty_sessions.json
 ```
@@ -357,11 +440,14 @@ python3 seshis.py --empty --printsessions > empty_sessions.json
 # Step 1: Check if API is working
 python3 seshis.py --debug
 
-# Step 2: Analyze specific issues with full debug info
-python3 seshis.py --empty --micro --debug > debug_output.log
+# Step 2: Identify problematic users
+python3 seshis.py --user > user_overview.log
 
-# Step 3: Extract session details for detailed analysis
-python3 seshis.py --empty --micro --printsessions > detailed_sessions.json
+# Step 3: Deep dive into specific user issues
+python3 seshis.py --user problematic.user@domain.com --debug
+
+# Step 4: Analyze specific issues with full debug info
+python3 seshis.py --empty --micro --debug > debug_output.log
 ```
 
 ### 📈 **Performance Analysis Workflow**
@@ -369,8 +455,13 @@ python3 seshis.py --empty --micro --printsessions > detailed_sessions.json
 # Weekly trend analysis with graphs
 python3 seshis.py --empty --micro --graph
 
+# User performance analysis with color coding
+python3 seshis.py --user --advanced
+
+# Individual user deep dive
+python3 seshis.py --user frequent.user@domain.com --debug
+
 # Month-to-month comparison
-# (Run with date range option 3 - Last month)
 python3 seshis.py --empty --micro --graph --printsessions
 ```
 
@@ -402,6 +493,8 @@ python3 seshis.py --empty --micro --graph --printsessions
       "session_kwh": 5.3713,
       "session_start_time": 1757623500418,
       "session_end_time": 1757623500470,
+      "created_at": "2025-09-15T07:12:27.381Z",
+      "updated_at": "2025-09-15T07:13:13.838Z",
       "status": "FINISHED",
       "user": "user@example.com",
       "vehicle": "2020 Tesla Model Y Performance AWD",
@@ -427,16 +520,21 @@ python3 seshis.py --empty --micro --graph --printsessions
 4. **Use --debug selectively** - it produces verbose output
 
 ### 🔧 **Automation Tips**
-1. **Always use --printsessions** in scripts to avoid interactive prompts
-2. **Pipe output to files** for further processing: `seshis.py --empty > report.txt`
-3. **Combine with cron jobs** for regular monitoring
-4. **Use specific date ranges** in automation rather than "today" for consistency
+1. **Skip --advanced flag** in automation to use streamlined defaults
+2. **Always use --printsessions** in scripts to avoid interactive prompts
+3. **Use --user for performance monitoring** without additional prompts
+4. **Pipe output to files** for further processing: `seshis.py --empty > report.txt`
+5. **Combine with cron jobs** for regular monitoring
+6. **Use specific date ranges** in automation rather than "today" for consistency
 
 ### 📊 **Analysis Tips**
-1. **Start with --empty --micro** to get overview before diving deep
-2. **Use custom date ranges** to analyze specific incidents or time periods
-3. **Compare different thresholds** for microsession analysis to find optimal values
-4. **Look for patterns** in daily breakdowns to identify systematic issues
+1. **Start with --user** to identify problematic users and patterns
+2. **Use color coding** to quickly spot performance issues (red = investigate)
+3. **Start with --empty --micro** to get overview before diving deep
+4. **Use custom date ranges** to analyze specific incidents or time periods
+5. **Compare different thresholds** for microsession analysis to find optimal values
+6. **Look for patterns** in daily breakdowns to identify systematic issues
+7. **Use --debug with --user** to see amperage calculations for performance analysis
 
 ---
 
@@ -481,6 +579,19 @@ For support, please:
 1. **Check this README** for common solutions
 2. **Run with `--debug`** to gather diagnostic information
 3. **Open an issue** with detailed information about your problem
+
+---
+
+## 🆕 Recent Updates
+
+### Version 2.0 Features
+- **🔥 User Analysis**: New `--user` flag for per-user session analysis
+- **🎨 Color Coding**: Performance-based color indicators (Green/Orange/Red)
+- **⚡ Performance Metrics**: Automatic amperage calculation and assessment
+- **🚀 Streamlined UX**: `--advanced` flag for simplified daily usage
+- **📊 Enhanced Details**: Session start/end times with duration calculation
+- **🔍 Smart Filtering**: Filter to specific users or analyze all users
+- **⏱️ Duration Intelligence**: Smart duration formatting (seconds/minutes/hours)
 
 ---
 
