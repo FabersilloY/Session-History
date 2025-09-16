@@ -15,11 +15,13 @@
 - **Combined Reports**: Get holistic view of charging session quality
 - **Daily Breakdowns**: Track performance trends over time
 
-### 📈 **Visual Reporting**
+### 📈 **Visual Reporting & Export**
 - **Interactive Graphs**: Generate matplotlib charts showing daily percentages
 - **Color-Coded Performance**: Visual indicators for session quality (Green/Orange/Red)
 - **Trend Analysis**: Visualize empty/micro session patterns over time
 - **Professional Charts**: Publication-ready graphs with proper formatting
+- **CSV Export**: Export session data to CSV files for spreadsheet analysis
+- **PDF Reports**: Generate professional PDF reports with color-coded sessions and logos
 
 ### 🛠️ **Flexible Configuration**
 - **Multiple Date Ranges**: Today, last week, last month, or custom date ranges
@@ -48,6 +50,8 @@
 ### Python Dependencies
 ```bash
 pip install matplotlib
+# Optional: For PDF export functionality
+pip install reportlab
 ```
 
 ### External Dependencies
@@ -67,6 +71,8 @@ pip install matplotlib
 2. **Install Python dependencies**:
    ```bash
    pip install matplotlib
+   # Optional: For PDF export functionality
+   pip install reportlab
    ```
 
 3. **Ensure curl_device_manager.sh is available**:
@@ -94,6 +100,8 @@ python3 seshis.py [OPTIONS]
 | `--advanced` | Enable advanced prompts (anonymize, sorting, etc.) | `--advanced` |
 | `--graph` | Generate and display visual charts | `--graph` |
 | `--printsessions` | Auto-print session details (no prompts) | `--printsessions` |
+| `--csv` | Export analysis to CSV file (requires analysis flag) | `--csv` |
+| `--pdf` | Export analysis to PDF report (requires analysis flag) | `--pdf` |
 | `--debug` | Enable comprehensive debug logging | `--debug` |
 
 ---
@@ -166,11 +174,83 @@ python3 seshis.py --user --graph --debug
 ```
 *Color-coded user analysis with performance calculations and debug information*
 
+**Export Analysis to CSV**
+```bash
+python3 seshis.py --empty --csv
+```
+*Exports empty session analysis to timestamped CSV file for spreadsheet analysis*
+
+**Generate PDF Report**
+```bash
+python3 seshis.py --user --pdf
+```
+*Creates professional PDF report with color-coded sessions and site branding*
+
 **Raw Session Data**
 ```bash
 python3 seshis.py
 ```
 *Outputs raw JSON session data without analysis*
+
+### 📄 **Export Examples**
+
+**Export Empty Sessions to CSV**
+```bash
+python3 seshis.py --empty --csv
+```
+*Analyzes empty sessions and exports results to timestamped CSV file*
+
+**Generate User Performance PDF**
+```bash
+python3 seshis.py --user --pdf
+```
+*Creates professional PDF report with color-coded user session analysis*
+
+**Combined Analysis PDF Report**
+```bash
+python3 seshis.py --empty --micro --pdf
+```
+*Comprehensive session quality analysis in professional PDF format*
+
+**Export Specific User Data**
+```bash
+python3 seshis.py --user user@example.com --csv
+```
+*Exports detailed session data for specific user to CSV file*
+
+---
+
+## 📊 Export Formats
+
+### 📄 **CSV Export**
+Use the `--csv` flag to export session data for spreadsheet analysis:
+- **Automatic timestamping**: Files named with current timestamp (YYYY_MM_DD_HHMMSS.csv)
+- **Comprehensive data**: All session fields including calculated metrics
+- **Performance metrics**: Duration, amperage, and performance ratings
+- **Compatible analysis**: Works with --empty, --micro, and --user flags
+
+**CSV Fields Include:**
+- `session_id`, `user`, `session_kwh`, `created_at`, `updated_at`
+- `duration_seconds`, `duration_formatted`, `avg_amperage`, `performance_rating`
+- `parking_space`, `pfid`, `authorization_source`, `status`
+- `session_start_time`, `session_end_time`, `reporting_id`, `site`, `vehicle`, `cost_actual`
+
+### 📋 **PDF Reports** 
+Use the `--pdf` flag to generate professional reports:
+- **Color-coded sessions**: Green/Orange/Red performance indicators based on charging amperage
+- **Site branding**: Automatic logo inclusion (if pf.jpg exists in script directory)
+- **Professional layout**: Landscape format with proper margins and spacing
+- **Detailed information**: Session times, durations, energy delivery, EVSE details, PFID, parking spaces
+- **User grouping**: Organized by user with session counts and summaries
+- **Smart formatting**: Null users handled gracefully, sessions sorted by user
+- **Performance metrics**: Visual color coding (Green: ≥16A, Orange: 8-15.9A, Red: <8A)
+- **Report header**: Site name, location, date range, generation timestamp
+
+### 🚫 **Export Restrictions**
+- Export flags require at least one analysis flag (--empty, --micro, or --user)
+- CSV and PDF flags cannot be used together
+- Export flags are incompatible with --graph (use separate runs)
+- PDF export requires reportlab library: `pip install reportlab`
 
 ---
 
@@ -279,6 +359,23 @@ User: john.doe@example.com
     Total sessions: 3
     Session 1: START: 2025-08-20 19:29:13 / END: 2025-08-21 00:21:03 / DURATION: 4.9h / 12.76309 kWh / 0101110102_2025-08-20...
     ...
+```
+
+### 📄 CSV Export Output
+```
+✅ CSV exported successfully: 2025_09_16_130558.csv
+📊 25 sessions exported
+```
+
+### 📋 PDF Export Output
+```
+⠋ Fetching session data from PowerFlex API...
+✅ Session data retrieved successfully
+🔧 Using logo: /Users/user/SCRIPTS/pf.jpg
+🔧 Logo added to PDF
+🔧 PDF exported successfully: 2025_09_16_130628.pdf
+✅ PDF exported successfully: 2025_09_16_130628.pdf
+📊 25 sessions exported
 ```
 
 ---
@@ -392,6 +489,19 @@ python3 seshis.py --user
 pip install matplotlib
 ```
 
+**5. "PDF export requires reportlab library"**
+```bash
+pip install reportlab
+```
+
+**6. "--csv/--pdf requires at least one analysis flag"**
+```bash
+# Export flags need an analysis flag - use one of:
+python3 seshis.py --empty --csv
+python3 seshis.py --micro --pdf
+python3 seshis.py --user --csv
+```
+
 ### 🔍 **Getting Help**
 1. **Enable debug mode** with `--debug` for detailed logging
 2. **Check API connectivity** by running without analysis flags
@@ -416,6 +526,10 @@ pip install matplotlib
 | `--user --advanced` | User analysis + full configuration options | Advanced user performance analysis |
 | `--empty --printsessions` | Empty analysis + auto-print details | Automated empty session reporting |
 | `--user --debug` | User analysis + performance calculations shown | User performance troubleshooting |
+| `--empty --csv` | Empty analysis + CSV export | Spreadsheet-ready empty session data |
+| `--user --pdf` | User analysis + PDF report | Professional user performance report |
+| `--micro --csv` | Microsession analysis + CSV export | Spreadsheet-ready microsession data |
+| `--empty --micro --pdf` | Combined analysis + PDF report | Complete session quality PDF report |
 | `--debug` (with any combo) | Adds comprehensive debug logging | Troubleshooting and development |
 | *(no flags)* | Raw JSON session dump | Data export and integration |
 
@@ -430,6 +544,13 @@ python3 seshis.py --empty --micro --graph > daily_report.log
 
 # User performance overview with color coding
 python3 seshis.py --user > user_performance.log
+
+# Generate professional PDF report for management
+python3 seshis.py --empty --micro --pdf
+
+# Export data for spreadsheet analysis
+python3 seshis.py --empty --csv
+python3 seshis.py --user --csv
 
 # Extract specific problematic sessions for investigation
 python3 seshis.py --empty --printsessions > empty_sessions.json
@@ -455,14 +576,19 @@ python3 seshis.py --empty --micro --debug > debug_output.log
 # Weekly trend analysis with graphs
 python3 seshis.py --empty --micro --graph
 
-# User performance analysis with color coding
-python3 seshis.py --user --advanced
+# Generate comprehensive PDF performance report
+python3 seshis.py --user --pdf
 
-# Individual user deep dive
-python3 seshis.py --user frequent.user@domain.com --debug
+# User performance analysis with CSV export for deeper analysis
+python3 seshis.py --user --csv
 
-# Month-to-month comparison
-python3 seshis.py --empty --micro --graph --printsessions
+# Individual user deep dive with PDF report
+python3 seshis.py --user frequent.user@domain.com --pdf
+
+# Export all data types for comprehensive analysis
+python3 seshis.py --empty --csv
+python3 seshis.py --micro --csv
+python3 seshis.py --user --csv
 ```
 
 ---
@@ -523,9 +649,11 @@ python3 seshis.py --empty --micro --graph --printsessions
 1. **Skip --advanced flag** in automation to use streamlined defaults
 2. **Always use --printsessions** in scripts to avoid interactive prompts
 3. **Use --user for performance monitoring** without additional prompts
-4. **Pipe output to files** for further processing: `seshis.py --empty > report.txt`
-5. **Combine with cron jobs** for regular monitoring
-6. **Use specific date ranges** in automation rather than "today" for consistency
+4. **Use CSV export for data processing**: `seshis.py --empty --csv` for automated analysis
+5. **Use PDF export for reports**: `seshis.py --user --pdf` for automated reporting
+6. **Combine with cron jobs** for regular monitoring and report generation
+7. **Use specific date ranges** in automation rather than "today" for consistency
+8. **Separate export runs**: Don't combine --graph with export flags in automation
 
 ### 📊 **Analysis Tips**
 1. **Start with --user** to identify problematic users and patterns
@@ -535,6 +663,9 @@ python3 seshis.py --empty --micro --graph --printsessions
 5. **Compare different thresholds** for microsession analysis to find optimal values
 6. **Look for patterns** in daily breakdowns to identify systematic issues
 7. **Use --debug with --user** to see amperage calculations for performance analysis
+8. **Export to CSV** for detailed spreadsheet analysis and data manipulation
+9. **Generate PDF reports** for professional presentations and record keeping
+10. **Use PDF for user reports** - color coding shows clearly in printed format
 
 ---
 
@@ -584,8 +715,17 @@ For support, please:
 
 ## 🆕 Recent Updates
 
+### Version 3.0 Features
+- **📄 CSV Export**: New `--csv` flag for spreadsheet-ready data export
+- **📋 PDF Reports**: New `--pdf` flag for professional report generation
+- **🎨 Enhanced PDF Styling**: Color-coded sessions with site branding
+- **📊 Comprehensive Data**: Export includes all session fields and calculated metrics
+- **🔧 Improved Error Handling**: Better handling of null/missing user data
+- **⚡ Progress Indicators**: Visual spinner during API data retrieval
+- **🏢 Automated Branding**: Logo inclusion in PDF reports (pf.jpg)
+
 ### Version 2.0 Features
-- **🔥 User Analysis**: New `--user` flag for per-user session analysis
+- **🔥 User Analysis**: `--user` flag for per-user session analysis
 - **🎨 Color Coding**: Performance-based color indicators (Green/Orange/Red)
 - **⚡ Performance Metrics**: Automatic amperage calculation and assessment
 - **🚀 Streamlined UX**: `--advanced` flag for simplified daily usage
