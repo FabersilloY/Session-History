@@ -64,7 +64,7 @@ pip install reportlab
 
 1. **Clone or download** the script:
    ```bash
-   wget https://your-repo/seshis.py
+   wget https://github.com/FabersilloY/Session-History/seshis.py
    chmod +x seshis.py
    ```
 
