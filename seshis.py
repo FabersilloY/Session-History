@@ -7,6 +7,20 @@ import matplotlib.pyplot as plt
 import threading
 import time
 import sys
+import csv
+import os
+
+# Try to import reportlab for PDF functionality
+try:
+    from reportlab.lib.pagesizes import letter, landscape
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import inch
+    from reportlab.lib import colors
+    from reportlab.lib.enums import TA_LEFT, TA_CENTER
+    REPORTLAB_AVAILABLE = True
+except ImportError:
+    REPORTLAB_AVAILABLE = False
 
 class ProgressSpinner:
     def __init__(self, message="Loading"):
@@ -38,6 +52,363 @@ class ProgressSpinner:
         else:
             sys.stdout.write(f"\r")
         sys.stdout.flush()
+
+def export_to_csv(sessions, filename, debug=False):
+    """Export session data to CSV file"""
+    try:
+        with open(filename, 'w', newline='', encoding='utf-8') as csvfile:
+            fieldnames = [
+                'session_id', 'user', 'session_kwh', 'created_at', 'updated_at', 
+                'duration_seconds', 'duration_formatted', 'avg_amperage', 'performance_rating',
+                'parking_space', 'pfid', 'authorization_source', 'status',
+                'session_start_time', 'session_end_time', 'reporting_id', 'site', 'vehicle', 'cost_actual'
+            ]
+            
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+            writer.writeheader()
+            
+            for session in sessions:
+                # Calculate duration and performance metrics
+                created_at = session.get("created_at", "")
+                updated_at = session.get("updated_at", "")
+                session_kwh = session.get("session_kwh", 0)
+                
+                duration_seconds = 0
+                duration_formatted = "N/A"
+                avg_amperage = 0
+                performance_rating = "Unknown"
+                
+                if created_at and updated_at:
+                    try:
+                        start_dt = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+                        end_dt = datetime.fromisoformat(updated_at.replace('Z', '+00:00'))
+                        duration_seconds = (end_dt - start_dt).total_seconds()
+                        
+                        # Format duration
+                        if duration_seconds < 60:
+                            duration_formatted = f"{duration_seconds:.0f}s"
+                        elif duration_seconds < 3600:
+                            minutes = duration_seconds / 60
+                            duration_formatted = f"{minutes:.1f}m"
+                        else:
+                            hours = duration_seconds / 3600
+                            duration_formatted = f"{hours:.1f}h"
+                        
+                        # Calculate average amperage and performance rating
+                        if session_kwh > 0 and duration_seconds > 0:
+                            duration_hours = duration_seconds / 3600
+                            avg_power_watts = (session_kwh * 1000) / duration_hours
+                            avg_amperage = avg_power_watts / 208
+                            
+                            if avg_amperage >= 16:
+                                performance_rating = "High"
+                            elif avg_amperage >= 8:
+                                performance_rating = "Medium"
+                            else:
+                                performance_rating = "Low"
+                        else:
+                            performance_rating = "Poor"
+                            
+                    except (ValueError, TypeError):
+                        pass
+                
+                # Prepare row data
+                row = {
+                    'session_id': session.get('session_id', ''),
+                    'user': session.get('user', ''),
+                    'session_kwh': session_kwh,
+                    'created_at': created_at,
+                    'updated_at': updated_at,
+                    'duration_seconds': duration_seconds,
+                    'duration_formatted': duration_formatted,
+                    'avg_amperage': round(avg_amperage, 2) if avg_amperage > 0 else 0,
+                    'performance_rating': performance_rating,
+                    'parking_space': session.get('parking_space', ''),
+                    'pfid': session.get('pfid', ''),
+                    'authorization_source': session.get('authorization_source', ''),
+                    'status': session.get('status', ''),
+                    'session_start_time': session.get('session_start_time', ''),
+                    'session_end_time': session.get('session_end_time', ''),
+                    'reporting_id': session.get('reporting_id', ''),
+                    'site': session.get('site', ''),
+                    'vehicle': session.get('vehicle', ''),
+                    'cost_actual': session.get('cost_actual', '')
+                }
+                
+                writer.writerow(row)
+            
+        if debug:
+            print(f"🔧 CSV exported successfully: {filename}")
+        
+        return True
+        
+    except Exception as e:
+        print(f"❌ Error exporting CSV: {e}")
+        return False
+
+def export_to_pdf(sessions, filename, analysis_type="user", specific_user=None, debug=False):
+    """Export session data to PDF file with color coding"""
+    try:
+        # Create PDF document in landscape orientation
+        doc = SimpleDocTemplate(filename, pagesize=landscape(letter), 
+                              rightMargin=0.5*inch, leftMargin=0.5*inch,
+                              topMargin=0.5*inch, bottomMargin=0.5*inch)
+        
+        # Get styles
+        styles = getSampleStyleSheet()
+        title_style = ParagraphStyle('CustomTitle', parent=styles['Heading1'], 
+                                   alignment=TA_CENTER, fontSize=16, spaceAfter=12)
+        subtitle_style = ParagraphStyle('CustomSubtitle', parent=styles['Heading2'], 
+                                      alignment=TA_CENTER, fontSize=12, spaceAfter=8)
+        normal_style = styles['Normal']
+        
+        # Story elements
+        story = []
+        
+        # Extract site information and date range from sessions
+        site_name = "Unknown Site"
+        site_location = "Unknown Location"
+        date_range_str = "No sessions"
+        
+        if sessions:
+            site_name = sessions[0].get("site", "Unknown Site")
+            site_location = sessions[0].get("site_location", "Unknown Location")
+            
+            # Calculate date range from session data
+            earliest_date = None
+            latest_date = None
+            
+            for session in sessions:
+                created_at = session.get("created_at", "")
+                if created_at:
+                    try:
+                        session_date = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+                        if earliest_date is None or session_date < earliest_date:
+                            earliest_date = session_date
+                        if latest_date is None or session_date > latest_date:
+                            latest_date = session_date
+                    except (ValueError, TypeError):
+                        continue
+            
+            # Format date range
+            if earliest_date and latest_date:
+                if earliest_date.date() == latest_date.date():
+                    # Same day
+                    date_range_str = f"Date: {earliest_date.strftime('%Y-%m-%d')}"
+                else:
+                    # Date range
+                    date_range_str = f"Date Range: {earliest_date.strftime('%Y-%m-%d')} to {latest_date.strftime('%Y-%m-%d')}"
+        
+        # Add simple header without logo
+        story.append(Paragraph(f"EV Charging Session Report", title_style))
+        story.append(Paragraph(f"Site: {site_name} | Location: {site_location}", subtitle_style))
+        story.append(Paragraph(f"{date_range_str}", normal_style))
+        story.append(Paragraph(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", normal_style))
+        story.append(Spacer(1, 12))
+        
+        # Check for logo file for later use
+        logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "pf.jpg")
+        if not os.path.exists(logo_path):
+            logo_path = None
+            if debug:
+                print(f"🔧 Logo not found at: {logo_path}")
+        elif debug:
+            print(f"🔧 Using logo: {logo_path}")
+        
+        if analysis_type == "user":
+            # Group sessions by user
+            user_sessions = {}
+            for session in sessions:
+                user = session.get("user") or "null"
+                if user not in user_sessions:
+                    user_sessions[user] = []
+                user_sessions[user].append(session)
+            
+            # Add logo before analysis section if available
+            if logo_path and os.path.exists(logo_path):
+                try:
+                    # Center the logo
+                    logo_img = Image(logo_path, width=2*inch, height=1.2*inch)
+                    logo_img.hAlign = 'CENTER'
+                    story.append(logo_img)
+                    story.append(Spacer(1, 12))
+                    if debug:
+                        print(f"🔧 Logo added to PDF")
+                except Exception as e:
+                    if debug:
+                        print(f"🔧 Failed to add logo: {e}")
+            
+            # Add summary
+            if specific_user:
+                story.append(Paragraph(f"User Session Analysis for: {specific_user}", subtitle_style))
+            else:
+                story.append(Paragraph(f"User Session Analysis - Total Users: {len(user_sessions)}", subtitle_style))
+            story.append(Spacer(1, 12))
+            
+            # Process each user
+            for user, user_session_list in sorted(user_sessions.items(), key=lambda x: x[0] or "null"):
+                # User header
+                user_header = f"User: {user} (Total sessions: {len(user_session_list)})"
+                story.append(Paragraph(user_header, styles['Heading3']))
+                
+                # Skip session details for null user
+                if user == "null":
+                    story.append(Spacer(1, 12))
+                    continue
+                
+                # Create session rows
+                session_rows = []
+                for i, session in enumerate(user_session_list, 1):
+                    row_text, color = format_session_for_pdf(session, i)
+                    session_rows.append([Paragraph(row_text, normal_style)])
+                
+                # Create table with color coding
+                if session_rows:
+                    table = Table(session_rows, colWidths=[10*inch])
+                    table_style = [('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                                 ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                                 ('FONTSIZE', (0, 0), (-1, -1), 9),
+                                 ('LEFTPADDING', (0, 0), (-1, -1), 6),
+                                 ('RIGHTPADDING', (0, 0), (-1, -1), 6)]
+                    
+                    # Add color coding to rows
+                    for idx, session in enumerate(user_session_list):
+                        _, color = format_session_for_pdf(session, idx + 1)
+                        if color == 'green':
+                            table_style.append(('BACKGROUND', (0, idx), (-1, idx), colors.lightgreen))
+                        elif color == 'orange':
+                            table_style.append(('BACKGROUND', (0, idx), (-1, idx), colors.orange))
+                        elif color == 'red':
+                            table_style.append(('BACKGROUND', (0, idx), (-1, idx), colors.lightcoral))
+                    
+                    table.setStyle(TableStyle(table_style))
+                    story.append(table)
+                
+                story.append(Spacer(1, 12))
+        
+        else:  # empty or micro analysis
+            # Add logo before analysis section if available
+            if logo_path and os.path.exists(logo_path):
+                try:
+                    # Center the logo
+                    logo_img = Image(logo_path, width=2*inch, height=1.2*inch)
+                    logo_img.hAlign = 'CENTER'
+                    story.append(logo_img)
+                    story.append(Spacer(1, 12))
+                    if debug:
+                        print(f"🔧 Logo added to PDF")
+                except Exception as e:
+                    if debug:
+                        print(f"🔧 Failed to add logo: {e}")
+            
+            story.append(Paragraph(f"Session Analysis - {analysis_type.title()} Sessions", subtitle_style))
+            story.append(Paragraph(f"Total sessions: {len(sessions)}", normal_style))
+            story.append(Spacer(1, 12))
+            
+            # Create session rows
+            session_rows = []
+            for i, session in enumerate(sessions, 1):
+                row_text, color = format_session_for_pdf(session, i)
+                session_rows.append([Paragraph(row_text, normal_style)])
+            
+            # Create table with color coding
+            if session_rows:
+                table = Table(session_rows, colWidths=[10*inch])
+                table_style = [('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                             ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                             ('FONTSIZE', (0, 0), (-1, -1), 9),
+                             ('LEFTPADDING', (0, 0), (-1, -1), 6),
+                             ('RIGHTPADDING', (0, 0), (-1, -1), 6)]
+                
+                # Add color coding to rows
+                for idx, session in enumerate(sessions):
+                    _, color = format_session_for_pdf(session, idx + 1)
+                    if color == 'green':
+                        table_style.append(('BACKGROUND', (0, idx), (-1, idx), colors.lightgreen))
+                    elif color == 'orange':
+                        table_style.append(('BACKGROUND', (0, idx), (-1, idx), colors.orange))
+                    elif color == 'red':
+                        table_style.append(('BACKGROUND', (0, idx), (-1, idx), colors.lightcoral))
+                
+                table.setStyle(TableStyle(table_style))
+                story.append(table)
+        
+        # Build PDF
+        doc.build(story)
+        
+        if debug:
+            print(f"🔧 PDF exported successfully: {filename}")
+        
+        return True
+        
+    except Exception as e:
+        print(f"❌ Error exporting PDF: {e}")
+        if debug:
+            import traceback
+            traceback.print_exc()
+        return False
+
+def format_session_for_pdf(session, session_num):
+    """Format a session for PDF display with color determination"""
+    # Extract session data
+    session_kwh = session.get("session_kwh", 0)
+    session_id = session.get("session_id", "unknown")
+    pfid = session.get("pfid", "N/A")
+    parking_space = session.get("parking_space", "N/A")
+    evse_type = session.get("evse_type", "N/A")
+    created_at = session.get("created_at", "")
+    updated_at = session.get("updated_at", "")
+    
+    # Parse dates and calculate duration
+    start_time = "N/A"
+    end_time = "N/A"
+    duration_str = "N/A"
+    color = "red"  # Default to red
+    
+    if created_at and updated_at:
+        try:
+            # Parse ISO format dates
+            start_dt = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+            end_dt = datetime.fromisoformat(updated_at.replace('Z', '+00:00'))
+            
+            # Format dates as YYYY-MM-DD HH:MM:SS
+            start_time = start_dt.strftime("%Y-%m-%d %H:%M:%S")
+            end_time = end_dt.strftime("%Y-%m-%d %H:%M:%S")
+            
+            # Calculate duration
+            duration_seconds = (end_dt - start_dt).total_seconds()
+            
+            if duration_seconds < 60:
+                duration_str = f"{duration_seconds:.0f}s"
+            elif duration_seconds < 3600:
+                minutes = duration_seconds / 60
+                duration_str = f"{minutes:.1f}m"
+            else:
+                hours = duration_seconds / 3600
+                duration_str = f"{hours:.1f}h"
+            
+            # Calculate average amperage for color coding
+            if session_kwh > 0 and duration_seconds > 0:
+                duration_hours = duration_seconds / 3600
+                avg_power_watts = (session_kwh * 1000) / duration_hours
+                avg_amperage = avg_power_watts / 208
+                
+                if avg_amperage >= 16:
+                    color = "green"
+                elif avg_amperage >= 8:
+                    color = "orange"
+                else:
+                    color = "red"
+            
+        except (ValueError, TypeError):
+            pass
+    
+    # Format the session line
+    session_text = (f"Session {session_num}: PFID: {pfid} / Parking Space: {parking_space} / "
+                   f"START: {start_time} / END: {end_time} / DURATION: {duration_str} / "
+                   f"{session_kwh} kWh / {session_id} / EVSE: {evse_type}")
+    
+    return session_text, color
 
 def run_command(cmd, debug=False, show_progress=True):
     if debug:
@@ -78,9 +449,29 @@ def main():
     parser.add_argument("--printsessions", action="store_true", help="Print session details without prompting")
     parser.add_argument("--user", nargs="?", const="all", help="Generate summary of sessions per user (optionally specify email address for specific user)")
     parser.add_argument("--advanced", action="store_true", help="Enable advanced prompts for anonymization, active sessions, sorting options")
+    parser.add_argument("--csv", action="store_true", help="Export session data to CSV file (requires analysis flag, incompatible with --graph)")
+    parser.add_argument("--pdf", action="store_true", help="Export session data to PDF file (requires analysis flag, incompatible with --graph)")
     parser.add_argument("--debug", action="store_true", help="Print debug information")
     args = parser.parse_args()
 
+    # Validate flag combinations
+    if (args.csv or args.pdf) and args.graph:
+        print("❌ Error: --csv/--pdf and --graph flags are incompatible")
+        return
+    
+    if (args.csv or args.pdf) and not (args.empty or args.micro or args.user):
+        print("❌ Error: --csv/--pdf requires at least one analysis flag (--empty, --micro, or --user)")
+        return
+    
+    if args.csv and args.pdf:
+        print("❌ Error: --csv and --pdf flags cannot be used together")
+        return
+    
+    if args.pdf and not REPORTLAB_AVAILABLE:
+        print("❌ Error: PDF export requires reportlab library")
+        print("📍 Install with: pip install reportlab")
+        return
+    
     # Interactive inputs
     if args.debug:
         print("🔧 Debug mode enabled")
@@ -382,7 +773,7 @@ def main():
             print(f"\n👥 User Session Summary for: {args.user}")
         
         # Process each user's sessions
-        for user, user_session_list in sorted(user_sessions.items()):
+        for user, user_session_list in sorted(user_sessions.items(), key=lambda x: x[0] or "null"):
             print(f"\nUser: {user}")
             print(f"    Total sessions: {len(user_session_list)}")
             
@@ -464,6 +855,75 @@ def main():
                 
                 session_line = f"    Session {i}: START: {start_time} / END: {end_time} / DURATION: {duration_str} / {session_kwh} kWh / {session_id}"
                 print(f"{color_code}{session_line}{reset_code}")
+    
+    # Export functionality (CSV or PDF)
+    if args.csv or args.pdf:
+        # Generate timestamp for filename
+        now = datetime.now()
+        file_extension = "csv" if args.csv else "pdf"
+        filename = f"{now.strftime('%Y_%m_%d_%H%M%S')}.{file_extension}"
+        
+        # Determine which sessions to export based on analysis flags
+        sessions_to_export = []
+        analysis_type = "user"
+        specific_user = None
+        
+        if args.user:
+            # For user analysis, export all valid sessions with user data
+            valid_sessions = [s for s in sessions if isinstance(s, dict)]
+            analysis_type = "user"
+            
+            if args.user != "all":
+                # Filter to specific user
+                sessions_to_export = [s for s in valid_sessions if s.get("user", "null") == args.user]
+                specific_user = args.user
+                if args.debug:
+                    print(f"🔧 Filtered {len(sessions_to_export)} sessions for user: {args.user}")
+            else:
+                # Export all user sessions
+                sessions_to_export = valid_sessions
+                if args.debug:
+                    print(f"🔧 Exporting {len(sessions_to_export)} sessions for all users")
+        
+        elif args.empty or args.micro:
+            # For empty/micro analysis, export the relevant sessions
+            valid_sessions = [s for s in sessions if isinstance(s, dict)]
+            
+            if args.empty and args.micro:
+                # Export both empty and micro sessions
+                sessions_to_export = [s for s in valid_sessions 
+                                    if s.get("session_kwh", 0) == 0 or 
+                                    (0 < s.get("session_kwh", 0) < micro_threshold)]
+                analysis_type = "empty_and_micro"
+            elif args.empty:
+                # Export only empty sessions
+                sessions_to_export = [s for s in valid_sessions if s.get("session_kwh", 0) == 0]
+                analysis_type = "empty"
+            elif args.micro:
+                # Export only micro sessions
+                sessions_to_export = [s for s in valid_sessions 
+                                    if 0 < s.get("session_kwh", 0) < micro_threshold]
+                analysis_type = "micro"
+            
+            if args.debug:
+                print(f"🔧 Exporting {len(sessions_to_export)} sessions for {analysis_type} analysis")
+        
+        # Export to CSV or PDF
+        if sessions_to_export:
+            if args.csv:
+                success = export_to_csv(sessions_to_export, filename, args.debug)
+            else:  # PDF
+                success = export_to_pdf(sessions_to_export, filename, analysis_type, specific_user, args.debug)
+            
+            if success:
+                export_type = "CSV" if args.csv else "PDF"
+                print(f"✅ {export_type} exported successfully: {filename}")
+                print(f"📊 {len(sessions_to_export)} sessions exported")
+            else:
+                export_type = "CSV" if args.csv else "PDF"
+                print(f"❌ Failed to export {export_type} file")
+        else:
+            print(f"⚠️  No sessions to export based on current filters")
     
     # If no analysis flags are used, just print all sessions
     if not args.empty and not args.micro and not args.user:
