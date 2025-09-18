@@ -146,7 +146,7 @@ def export_to_csv(sessions, filename, debug=False):
         print(f"❌ Error exporting CSV: {e}")
         return False
 
-def export_to_pdf(sessions, filename, analysis_type="user", specific_user=None, debug=False):
+def export_to_pdf(sessions, filename, analysis_type="user", specific_user=None, micro_threshold=None, debug=False):
     """Export session data to PDF file with color coding"""
     try:
         # Create PDF document in landscape orientation
@@ -206,6 +206,12 @@ def export_to_pdf(sessions, filename, analysis_type="user", specific_user=None, 
         story.append(Paragraph(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", normal_style))
         story.append(Spacer(1, 12))
         
+        # Add color legend
+        legend_style = ParagraphStyle('Legend', parent=styles['Normal'], fontSize=10, spaceAfter=6)
+        story.append(Paragraph("<b>Status Legend:</b>", legend_style))
+        story.append(Paragraph('<font color="#00AA00">■■■</font> High Performance (≥16A avg) | <font color="#FF8800">■■■</font> Medium Performance (8-16A avg) | <font color="#CC0000">■■■</font> Low/Poor Performance (<8A avg)', legend_style))
+        story.append(Spacer(1, 12))
+        
         # Check for logo file for later use
         logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "pf.jpg")
         if not os.path.exists(logo_path):
@@ -215,11 +221,11 @@ def export_to_pdf(sessions, filename, analysis_type="user", specific_user=None, 
         elif debug:
             print(f"🔧 Using logo: {logo_path}")
         
-        if analysis_type == "user":
+        if analysis_type == "user" or analysis_type.startswith("user_with_") or analysis_type == "all_sessions":
             # Group sessions by user
             user_sessions = {}
             for session in sessions:
-                user = session.get("user") or "null"
+                user = session.get("user") or "🔓 UNCLAIMED SESSIONS"
                 if user not in user_sessions:
                     user_sessions[user] = []
                 user_sessions[user].append(session)
@@ -239,30 +245,60 @@ def export_to_pdf(sessions, filename, analysis_type="user", specific_user=None, 
                         print(f"🔧 Failed to add logo: {e}")
             
             # Add summary
+            analysis_title = "User Session Analysis"
+            if analysis_type.startswith("user_with_"):
+                # Extract the filter types from the analysis_type
+                filter_part = analysis_type.replace("user_with_", "")
+                filter_types = filter_part.replace("+", " + ")
+                analysis_title = f"User Session Analysis with {filter_types} sessions"
+            elif analysis_type == "all_sessions":
+                analysis_title = "Complete User Session Analysis (All Session Types)"
+            
             if specific_user:
-                story.append(Paragraph(f"User Session Analysis for: {specific_user}", subtitle_style))
+                story.append(Paragraph(f"{analysis_title} for: {specific_user}", subtitle_style))
             else:
-                story.append(Paragraph(f"User Session Analysis - Total Users: {len(user_sessions)}", subtitle_style))
+                story.append(Paragraph(f"{analysis_title} - Total Users: {len(user_sessions)}", subtitle_style))
             story.append(Spacer(1, 12))
             
             # Process each user
             for user, user_session_list in sorted(user_sessions.items(), key=lambda x: x[0] or "null"):
-                # User header
-                user_header = f"User: {user} (Total sessions: {len(user_session_list)})"
+                # Calculate session statistics for user
+                empty_count = sum(1 for s in user_session_list if s.get("session_kwh", 0) == 0)
+                micro_count = 0
+                if analysis_type.startswith("user_with_") and "micro" in analysis_type and micro_threshold:
+                    micro_count = sum(1 for s in user_session_list 
+                                    if 0 < s.get("session_kwh", 0) < micro_threshold)
+                
+                total_sessions = len(user_session_list)
+                normal_count = total_sessions - empty_count - micro_count
+                normal_percentage = (normal_count / total_sessions * 100) if total_sessions > 0 else 0
+                
+                # User header with percentage
+                if analysis_type.startswith("user_with_") or analysis_type == "all_sessions":
+                    user_header = f"User: {user} ({normal_percentage:.1f}% normal sessions, Total: {total_sessions})"
+                    # Add breakdown for all_sessions type
+                    if analysis_type == "all_sessions":
+                        user_header += f"\nEmpty: {empty_count} | Micro: {micro_count} | Normal: {normal_count}"
+                else:
+                    user_header = f"User: {user} (Total sessions: {total_sessions})"
                 story.append(Paragraph(user_header, styles['Heading3']))
                 
-                # Skip session details for null user
-                if user == "null":
-                    story.append(Spacer(1, 12))
-                    continue
+                # Add explanation for unclaimed sessions
+                if user == "🔓 UNCLAIMED SESSIONS":
+                    story.append(Paragraph("These are sessions where users plugged in without scanning the QR code first.", normal_style))
+                    story.append(Spacer(1, 6))
                 
-                # Create session rows
+                # Create session rows (show all sessions for all_sessions type)
                 session_rows = []
-                for i, session in enumerate(user_session_list, 1):
-                    row_text, color = format_session_for_pdf(session, i)
-                    session_rows.append([Paragraph(row_text, normal_style)])
+                sessions_to_show_pdf = user_session_list  # Show all sessions for all_sessions type
                 
-                # Create table with color coding
+                for i, session in enumerate(sessions_to_show_pdf, 1):
+                    row_text, color = format_session_for_pdf(session, i)
+                    # Create paragraph with colored status indicator
+                    colored_paragraph = create_colored_session_paragraph(row_text, color, normal_style)
+                    session_rows.append([colored_paragraph])
+                
+                # Create table without background color coding
                 if session_rows:
                     table = Table(session_rows, colWidths=[10*inch])
                     table_style = [('ALIGN', (0, 0), (-1, -1), 'LEFT'),
@@ -270,16 +306,6 @@ def export_to_pdf(sessions, filename, analysis_type="user", specific_user=None, 
                                  ('FONTSIZE', (0, 0), (-1, -1), 9),
                                  ('LEFTPADDING', (0, 0), (-1, -1), 6),
                                  ('RIGHTPADDING', (0, 0), (-1, -1), 6)]
-                    
-                    # Add color coding to rows
-                    for idx, session in enumerate(user_session_list):
-                        _, color = format_session_for_pdf(session, idx + 1)
-                        if color == 'green':
-                            table_style.append(('BACKGROUND', (0, idx), (-1, idx), colors.lightgreen))
-                        elif color == 'orange':
-                            table_style.append(('BACKGROUND', (0, idx), (-1, idx), colors.orange))
-                        elif color == 'red':
-                            table_style.append(('BACKGROUND', (0, idx), (-1, idx), colors.lightcoral))
                     
                     table.setStyle(TableStyle(table_style))
                     story.append(table)
@@ -309,9 +335,11 @@ def export_to_pdf(sessions, filename, analysis_type="user", specific_user=None, 
             session_rows = []
             for i, session in enumerate(sessions, 1):
                 row_text, color = format_session_for_pdf(session, i)
-                session_rows.append([Paragraph(row_text, normal_style)])
+                # Create paragraph with colored status indicator
+                colored_paragraph = create_colored_session_paragraph(row_text, color, normal_style)
+                session_rows.append([colored_paragraph])
             
-            # Create table with color coding
+            # Create table without background color coding
             if session_rows:
                 table = Table(session_rows, colWidths=[10*inch])
                 table_style = [('ALIGN', (0, 0), (-1, -1), 'LEFT'),
@@ -319,16 +347,6 @@ def export_to_pdf(sessions, filename, analysis_type="user", specific_user=None, 
                              ('FONTSIZE', (0, 0), (-1, -1), 9),
                              ('LEFTPADDING', (0, 0), (-1, -1), 6),
                              ('RIGHTPADDING', (0, 0), (-1, -1), 6)]
-                
-                # Add color coding to rows
-                for idx, session in enumerate(sessions):
-                    _, color = format_session_for_pdf(session, idx + 1)
-                    if color == 'green':
-                        table_style.append(('BACKGROUND', (0, idx), (-1, idx), colors.lightgreen))
-                    elif color == 'orange':
-                        table_style.append(('BACKGROUND', (0, idx), (-1, idx), colors.orange))
-                    elif color == 'red':
-                        table_style.append(('BACKGROUND', (0, idx), (-1, idx), colors.lightcoral))
                 
                 table.setStyle(TableStyle(table_style))
                 story.append(table)
@@ -410,6 +428,28 @@ def format_session_for_pdf(session, session_num):
     
     return session_text, color
 
+def create_colored_session_paragraph(session_text, color, base_style):
+    """Create a paragraph with a colored status indicator at the beginning"""
+    # Define color mapping for the status indicators
+    color_map = {
+        'green': '#00AA00',    # Green for high performance
+        'orange': '#FF8800',   # Orange for medium performance  
+        'red': '#CC0000'       # Red for low/poor performance
+    }
+    
+    # Get the hex color, default to red if unknown
+    hex_color = color_map.get(color, '#CC0000')
+    
+    # Create a colored square/box indicator using HTML-like formatting
+    # The ■ symbol creates a solid square that we can color
+    colored_indicator = f'<font color="{hex_color}">■■■</font>'
+    
+    # Combine the colored indicator with the session text
+    formatted_text = f'{colored_indicator} {session_text}'
+    
+    # Return a Paragraph with the formatted text
+    return Paragraph(formatted_text, base_style)
+
 def run_command(cmd, debug=False, show_progress=True):
     if debug:
         print(f"🔧 Running: {cmd}")
@@ -451,6 +491,7 @@ def main():
     parser.add_argument("--advanced", action="store_true", help="Enable advanced prompts for anonymization, active sessions, sorting options")
     parser.add_argument("--csv", action="store_true", help="Export session data to CSV file (requires analysis flag, incompatible with --graph)")
     parser.add_argument("--pdf", action="store_true", help="Export session data to PDF file (requires analysis flag, incompatible with --graph)")
+    parser.add_argument("--all", action="store_true", help="Show all sessions (empty, micro, and normal) grouped by user (requires --pdf or --csv)")
     parser.add_argument("--debug", action="store_true", help="Print debug information")
     args = parser.parse_args()
 
@@ -459,8 +500,16 @@ def main():
         print("❌ Error: --csv/--pdf and --graph flags are incompatible")
         return
     
-    if (args.csv or args.pdf) and not (args.empty or args.micro or args.user):
-        print("❌ Error: --csv/--pdf requires at least one analysis flag (--empty, --micro, or --user)")
+    if args.all and not (args.csv or args.pdf):
+        print("❌ Error: --all flag requires --csv or --pdf")
+        return
+    
+    if args.all and (args.empty or args.micro or args.user):
+        print("❌ Error: --all flag cannot be used with --empty, --micro, or --user flags")
+        return
+    
+    if (args.csv or args.pdf) and not (args.empty or args.micro or args.user or args.all):
+        print("❌ Error: --csv/--pdf requires at least one analysis flag (--empty, --micro, --user, or --all)")
         return
     
     if args.csv and args.pdf:
@@ -766,22 +815,360 @@ def main():
                 return
         
         # Display header based on mode
-        if args.user == "all":
-            print(f"\n👥 User Session Summary:")
-            print(f"📊 Total unique users: {len(user_sessions)}")
+        combined_mode = args.empty or args.micro
+        if combined_mode:
+            mode_desc = []
+            if args.empty:
+                mode_desc.append("empty")
+            if args.micro:
+                mode_desc.append("micro")
+            mode_str = " + ".join(mode_desc)
+            
+            if args.user == "all":
+                print(f"\n👥 User Session Summary with {mode_str} sessions:")
+                print(f"📊 Total unique users: {len(user_sessions)}")
+            else:
+                print(f"\n👥 User Session Summary for {args.user} with {mode_str} sessions:")
         else:
-            print(f"\n👥 User Session Summary for: {args.user}")
+            if args.user == "all":
+                print(f"\n👥 User Session Summary:")
+                print(f"📊 Total unique users: {len(user_sessions)}")
+            else:
+                print(f"\n👥 User Session Summary for: {args.user}")
         
-        # Process each user's sessions
+        # Separate unclaimed sessions from regular users
+        unclaimed_sessions = user_sessions.pop("null", [])
+        
+        # Process each user's sessions (excluding unclaimed)
         for user, user_session_list in sorted(user_sessions.items(), key=lambda x: x[0] or "null"):
-            print(f"\nUser: {user}")
-            print(f"    Total sessions: {len(user_session_list)}")
+            # Calculate session categories for this user
+            empty_count = 0
+            micro_count = 0
+            normal_count = 0
             
-            # For null user, just show count without details
-            if user == "null":
-                continue
+            for session in user_session_list:
+                session_kwh = session.get("session_kwh", 0)
+                if session_kwh == 0:
+                    empty_count += 1
+                elif args.micro and micro_threshold and 0 < session_kwh < micro_threshold:
+                    micro_count += 1
+                else:
+                    normal_count += 1
             
-            # Display session details for non-null users
+            total_sessions = len(user_session_list)
+            normal_percentage = (normal_count / total_sessions * 100) if total_sessions > 0 else 0
+            
+            # Display user header with percentage of normal sessions
+            print(f"\nUser: {user} ({normal_percentage:.1f}% normal sessions)")
+            print(f"    Total sessions: {total_sessions}")
+            
+            if combined_mode:
+                if args.empty:
+                    print(f"    Empty sessions (0 kWh): {empty_count} ({(empty_count/total_sessions*100) if total_sessions else 0:.1f}%)")
+                if args.micro:
+                    print(f"    Microsessions (0 < kWh < {micro_threshold}): {micro_count} ({(micro_count/total_sessions*100) if total_sessions else 0:.1f}%)")
+                print(f"    Normal sessions (>= {micro_threshold if args.micro else '0'} kWh): {normal_count} ({normal_percentage:.1f}%)")
+            
+            # Filter sessions to show based on flags
+            sessions_to_show = []
+            if combined_mode:
+                for session in user_session_list:
+                    session_kwh = session.get("session_kwh", 0)
+                    show_session = False
+                    
+                    if args.empty and session_kwh == 0:
+                        show_session = True
+                    if args.micro and micro_threshold and 0 < session_kwh < micro_threshold:
+                        show_session = True
+                    
+                    if show_session:
+                        sessions_to_show.append(session)
+            else:
+                # Show all sessions if not in combined mode
+                sessions_to_show = user_session_list
+            
+            # Display session details
+            if sessions_to_show:
+                print(f"\n    Showing {len(sessions_to_show)} sessions:")
+                for i, session in enumerate(sessions_to_show, 1):
+                    session_kwh = session.get("session_kwh", 0)
+                    session_id = session.get("session_id", "unknown")
+                    
+                    # Parse dates and calculate duration
+                    created_at = session.get("created_at", "")
+                    updated_at = session.get("updated_at", "")
+                    
+                    start_time = "N/A"
+                    end_time = "N/A"
+                    duration_str = "N/A"
+                    
+                    if created_at and updated_at:
+                        try:
+                            # Parse ISO format dates
+                            start_dt = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+                            end_dt = datetime.fromisoformat(updated_at.replace('Z', '+00:00'))
+                            
+                            # Format dates as YYYY-MM-DD HH:MM:SS
+                            start_time = start_dt.strftime("%Y-%m-%d %H:%M:%S")
+                            end_time = end_dt.strftime("%Y-%m-%d %H:%M:%S")
+                            
+                            # Calculate duration
+                            duration_seconds = (end_dt - start_dt).total_seconds()
+                            
+                            if duration_seconds < 60:
+                                duration_str = f"{duration_seconds:.0f}s"
+                            elif duration_seconds < 3600:
+                                minutes = duration_seconds / 60
+                                duration_str = f"{minutes:.1f}m"
+                            else:
+                                hours = duration_seconds / 3600
+                                duration_str = f"{hours:.1f}h"
+                                
+                        except (ValueError, TypeError) as e:
+                            if args.debug:
+                                print(f"🔧 Error parsing dates for session {session_id}: {e}")
+                    
+                    # Calculate average amperage for color coding
+                    # Using P = V * I, so I = P / V
+                    # Average power = kWh / hours, then convert to watts
+                    # Assuming 208V as mentioned
+                    color_code = ""
+                    reset_code = "\033[0m"
+                    session_type = ""
+                    
+                    if session_kwh == 0:
+                        color_code = "\033[91m"  # Red for empty sessions
+                        session_type = " [EMPTY]"
+                    elif args.micro and micro_threshold and 0 < session_kwh < micro_threshold:
+                        color_code = "\033[93m"  # Orange for microsessions
+                        session_type = " [MICRO]"
+                    elif created_at and updated_at and session_kwh > 0:
+                        try:
+                            duration_hours = duration_seconds / 3600
+                            if duration_hours > 0:
+                                # Calculate average power in watts
+                                avg_power_watts = (session_kwh * 1000) / duration_hours
+                                # Calculate average amperage at 208V
+                                avg_amperage = avg_power_watts / 208
+                                
+                                if args.debug:
+                                    print(f"    🔧 Session {i} calculations: {duration_hours:.2f}h, {avg_power_watts:.1f}W, {avg_amperage:.1f}A")
+                                
+                                # Color coding based on amperage
+                                if avg_amperage >= 16:
+                                    color_code = "\033[92m"  # Green
+                                    session_type = " [NORMAL-HIGH]"
+                                elif avg_amperage >= 8:
+                                    color_code = "\033[93m"  # Orange/Yellow
+                                    session_type = " [NORMAL-MED]"
+                                else:
+                                    color_code = "\033[91m"  # Red
+                                    session_type = " [NORMAL-LOW]"
+                            else:
+                                color_code = "\033[91m"  # Red for zero duration
+                                session_type = " [DURATION-ERROR]"
+                        except (ValueError, TypeError, ZeroDivisionError):
+                            color_code = "\033[91m"  # Red for calculation errors
+                            session_type = " [CALC-ERROR]"
+                    else:
+                        color_code = "\033[91m"  # Red for missing data
+                        session_type = " [DATA-ERROR]"
+                    
+                    session_line = f"    Session {i}: START: {start_time} / END: {end_time} / DURATION: {duration_str} / {session_kwh} kWh / {session_id}{session_type}"
+                    print(f"{color_code}{session_line}{reset_code}")
+        
+        # Always show unclaimed sessions at the bottom if they exist
+        if unclaimed_sessions:
+            # Calculate session categories for unclaimed sessions
+            empty_count = 0
+            micro_count = 0
+            normal_count = 0
+            
+            for session in unclaimed_sessions:
+                session_kwh = session.get("session_kwh", 0)
+                if session_kwh == 0:
+                    empty_count += 1
+                elif args.micro and micro_threshold and 0 < session_kwh < micro_threshold:
+                    micro_count += 1
+                else:
+                    normal_count += 1
+            
+            total_sessions = len(unclaimed_sessions)
+            normal_percentage = (normal_count / total_sessions * 100) if total_sessions > 0 else 0
+            
+            # Display unclaimed sessions header
+            print(f"\n🔓 UNCLAIMED SESSIONS ({normal_percentage:.1f}% normal sessions)")
+            print(f"    These are sessions where users plugged in without scanning the QR code first")
+            print(f"    Total sessions: {total_sessions}")
+            
+            if combined_mode:
+                if args.empty:
+                    print(f"    Empty sessions (0 kWh): {empty_count} ({(empty_count/total_sessions*100) if total_sessions else 0:.1f}%)")
+                if args.micro:
+                    print(f"    Microsessions (0 < kWh < {micro_threshold}): {micro_count} ({(micro_count/total_sessions*100) if total_sessions else 0:.1f}%)")
+                print(f"    Normal sessions (>= {micro_threshold if args.micro else '0'} kWh): {normal_count} ({normal_percentage:.1f}%)")
+            
+            # Filter unclaimed sessions to show based on flags
+            sessions_to_show = []
+            if combined_mode:
+                for session in unclaimed_sessions:
+                    session_kwh = session.get("session_kwh", 0)
+                    show_session = False
+                    
+                    if args.empty and session_kwh == 0:
+                        show_session = True
+                    if args.micro and micro_threshold and 0 < session_kwh < micro_threshold:
+                        show_session = True
+                    
+                    if show_session:
+                        sessions_to_show.append(session)
+            else:
+                # Show all unclaimed sessions if not in combined mode
+                sessions_to_show = unclaimed_sessions
+            
+            # Display unclaimed session details
+            if sessions_to_show:
+                print(f"\n    Showing {len(sessions_to_show)} unclaimed sessions:")
+                for i, session in enumerate(sessions_to_show, 1):
+                    session_kwh = session.get("session_kwh", 0)
+                    session_id = session.get("session_id", "unknown")
+                    
+                    # Parse dates and calculate duration
+                    created_at = session.get("created_at", "")
+                    updated_at = session.get("updated_at", "")
+                    
+                    start_time = "N/A"
+                    end_time = "N/A"
+                    duration_str = "N/A"
+                    
+                    if created_at and updated_at:
+                        try:
+                            # Parse ISO format dates
+                            start_dt = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+                            end_dt = datetime.fromisoformat(updated_at.replace('Z', '+00:00'))
+                            
+                            # Format dates as YYYY-MM-DD HH:MM:SS
+                            start_time = start_dt.strftime("%Y-%m-%d %H:%M:%S")
+                            end_time = end_dt.strftime("%Y-%m-%d %H:%M:%S")
+                            
+                            # Calculate duration
+                            duration_seconds = (end_dt - start_dt).total_seconds()
+                            
+                            if duration_seconds < 60:
+                                duration_str = f"{duration_seconds:.0f}s"
+                            elif duration_seconds < 3600:
+                                minutes = duration_seconds / 60
+                                duration_str = f"{minutes:.1f}m"
+                            else:
+                                hours = duration_seconds / 3600
+                                duration_str = f"{hours:.1f}h"
+                                
+                        except (ValueError, TypeError) as e:
+                            if args.debug:
+                                print(f"🔧 Error parsing dates for session {session_id}: {e}")
+                    
+                    # Calculate average amperage for color coding
+                    color_code = ""
+                    reset_code = "\033[0m"
+                    session_type = ""
+                    
+                    if session_kwh == 0:
+                        color_code = "\033[91m"  # Red for empty sessions
+                        session_type = " [EMPTY]"
+                    elif args.micro and micro_threshold and 0 < session_kwh < micro_threshold:
+                        color_code = "\033[93m"  # Orange for microsessions
+                        session_type = " [MICRO]"
+                    elif created_at and updated_at and session_kwh > 0:
+                        try:
+                            duration_hours = duration_seconds / 3600
+                            if duration_hours > 0:
+                                # Calculate average power in watts
+                                avg_power_watts = (session_kwh * 1000) / duration_hours
+                                # Calculate average amperage at 208V
+                                avg_amperage = avg_power_watts / 208
+                                
+                                if args.debug:
+                                    print(f"    🔧 Session {i} calculations: {duration_hours:.2f}h, {avg_power_watts:.1f}W, {avg_amperage:.1f}A")
+                                
+                                # Color coding based on amperage
+                                if avg_amperage >= 16:
+                                    color_code = "\033[92m"  # Green
+                                    session_type = " [NORMAL-HIGH]"
+                                elif avg_amperage >= 8:
+                                    color_code = "\033[93m"  # Orange/Yellow
+                                    session_type = " [NORMAL-MED]"
+                                else:
+                                    color_code = "\033[91m"  # Red
+                                    session_type = " [NORMAL-LOW]"
+                            else:
+                                color_code = "\033[91m"  # Red for zero duration
+                                session_type = " [DURATION-ERROR]"
+                        except (ValueError, TypeError, ZeroDivisionError):
+                            color_code = "\033[91m"  # Red for calculation errors
+                            session_type = " [CALC-ERROR]"
+                    else:
+                        color_code = "\033[91m"  # Red for missing data
+                        session_type = " [DATA-ERROR]"
+                    
+                    session_line = f"    Session {i}: START: {start_time} / END: {end_time} / DURATION: {duration_str} / {session_kwh} kWh / {session_id}{session_type}"
+                    print(f"{color_code}{session_line}{reset_code}")
+    
+    # All sessions summary (like user mode but shows all session types)
+    if args.all:
+        if args.debug:
+            print(f"🔧 Starting all sessions analysis...")
+        
+        # Filter out non-dictionary items before processing
+        valid_sessions = [s for s in sessions if isinstance(s, dict)]
+        
+        # Group sessions by user
+        user_sessions = {}
+        for session in valid_sessions:
+            user = session.get("user") or "null"
+            if user not in user_sessions:
+                user_sessions[user] = []
+            user_sessions[user].append(session)
+        
+        # Display header
+        print(f"\n👥 Complete User Session Analysis (All Session Types):")
+        print(f"📊 Total unique users: {len(user_sessions)}")
+        print(f"📊 Total sessions: {len(valid_sessions)}")
+        
+        # We need micro_threshold for categorization, but it might not be set
+        # Set a default threshold for categorization purposes
+        display_micro_threshold = 1.0  # Default threshold for display
+        
+        # Separate unclaimed sessions from regular users
+        unclaimed_sessions = user_sessions.pop("null", [])
+        
+        # Process each user's sessions (excluding unclaimed)
+        for user, user_session_list in sorted(user_sessions.items(), key=lambda x: x[0] or "null"):
+            # Calculate session categories for this user
+            empty_count = 0
+            micro_count = 0
+            normal_count = 0
+            
+            for session in user_session_list:
+                session_kwh = session.get("session_kwh", 0)
+                if session_kwh == 0:
+                    empty_count += 1
+                elif 0 < session_kwh < display_micro_threshold:
+                    micro_count += 1
+                else:
+                    normal_count += 1
+            
+            total_sessions = len(user_session_list)
+            normal_percentage = (normal_count / total_sessions * 100) if total_sessions > 0 else 0
+            
+            # Display user header with percentage of normal sessions
+            print(f"\nUser: {user} ({normal_percentage:.1f}% normal sessions)")
+            print(f"    Total sessions: {total_sessions}")
+            print(f"    Empty sessions (0 kWh): {empty_count} ({(empty_count/total_sessions*100) if total_sessions else 0:.1f}%)")
+            print(f"    Microsessions (0 < kWh < {display_micro_threshold}): {micro_count} ({(micro_count/total_sessions*100) if total_sessions else 0:.1f}%)")
+            print(f"    Normal sessions (>= {display_micro_threshold} kWh): {normal_count} ({normal_percentage:.1f}%)")
+            
+            # Display all session details
+            print(f"\n    All sessions for {user}:")
             for i, session in enumerate(user_session_list, 1):
                 session_kwh = session.get("session_kwh", 0)
                 session_id = session.get("session_id", "unknown")
@@ -820,14 +1207,18 @@ def main():
                         if args.debug:
                             print(f"🔧 Error parsing dates for session {session_id}: {e}")
                 
-                # Calculate average amperage for color coding
-                # Using P = V * I, so I = P / V
-                # Average power = kWh / hours, then convert to watts
-                # Assuming 208V as mentioned
+                # Calculate average amperage for color coding and session type
                 color_code = ""
                 reset_code = "\033[0m"
+                session_type = ""
                 
-                if created_at and updated_at and session_kwh > 0:
+                if session_kwh == 0:
+                    color_code = "\033[91m"  # Red for empty sessions
+                    session_type = " [EMPTY]"
+                elif 0 < session_kwh < display_micro_threshold:
+                    color_code = "\033[93m"  # Orange for microsessions
+                    session_type = " [MICRO]"
+                elif created_at and updated_at and session_kwh > 0:
                     try:
                         duration_hours = duration_seconds / 3600
                         if duration_hours > 0:
@@ -842,18 +1233,137 @@ def main():
                             # Color coding based on amperage
                             if avg_amperage >= 16:
                                 color_code = "\033[92m"  # Green
+                                session_type = " [NORMAL-HIGH]"
                             elif avg_amperage >= 8:
                                 color_code = "\033[93m"  # Orange/Yellow
+                                session_type = " [NORMAL-MED]"
                             else:
                                 color_code = "\033[91m"  # Red
+                                session_type = " [NORMAL-LOW]"
                         else:
                             color_code = "\033[91m"  # Red for zero duration
+                            session_type = " [DURATION-ERROR]"
                     except (ValueError, TypeError, ZeroDivisionError):
                         color_code = "\033[91m"  # Red for calculation errors
+                        session_type = " [CALC-ERROR]"
                 else:
-                    color_code = "\033[91m"  # Red for missing data or zero kWh
+                    color_code = "\033[91m"  # Red for missing data
+                    session_type = " [DATA-ERROR]"
                 
-                session_line = f"    Session {i}: START: {start_time} / END: {end_time} / DURATION: {duration_str} / {session_kwh} kWh / {session_id}"
+                session_line = f"    Session {i}: START: {start_time} / END: {end_time} / DURATION: {duration_str} / {session_kwh} kWh / {session_id}{session_type}"
+                print(f"{color_code}{session_line}{reset_code}")
+        
+        # Always show unclaimed sessions at the bottom if they exist
+        if unclaimed_sessions:
+            # Calculate session categories for unclaimed sessions
+            empty_count = 0
+            micro_count = 0
+            normal_count = 0
+            
+            for session in unclaimed_sessions:
+                session_kwh = session.get("session_kwh", 0)
+                if session_kwh == 0:
+                    empty_count += 1
+                elif 0 < session_kwh < display_micro_threshold:
+                    micro_count += 1
+                else:
+                    normal_count += 1
+            
+            total_sessions = len(unclaimed_sessions)
+            normal_percentage = (normal_count / total_sessions * 100) if total_sessions > 0 else 0
+            
+            # Display unclaimed sessions header
+            print(f"\n🔓 UNCLAIMED SESSIONS ({normal_percentage:.1f}% normal sessions)")
+            print(f"    These are sessions where users plugged in without scanning the QR code first")
+            print(f"    Total sessions: {total_sessions}")
+            print(f"    Empty sessions (0 kWh): {empty_count} ({(empty_count/total_sessions*100) if total_sessions else 0:.1f}%)")
+            print(f"    Microsessions (0 < kWh < {display_micro_threshold}): {micro_count} ({(micro_count/total_sessions*100) if total_sessions else 0:.1f}%)")
+            print(f"    Normal sessions (>= {display_micro_threshold} kWh): {normal_count} ({normal_percentage:.1f}%)")
+            
+            # Display all unclaimed session details
+            print(f"\n    All unclaimed sessions:")
+            for i, session in enumerate(unclaimed_sessions, 1):
+                session_kwh = session.get("session_kwh", 0)
+                session_id = session.get("session_id", "unknown")
+                
+                # Parse dates and calculate duration
+                created_at = session.get("created_at", "")
+                updated_at = session.get("updated_at", "")
+                
+                start_time = "N/A"
+                end_time = "N/A"
+                duration_str = "N/A"
+                
+                if created_at and updated_at:
+                    try:
+                        # Parse ISO format dates
+                        start_dt = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+                        end_dt = datetime.fromisoformat(updated_at.replace('Z', '+00:00'))
+                        
+                        # Format dates as YYYY-MM-DD HH:MM:SS
+                        start_time = start_dt.strftime("%Y-%m-%d %H:%M:%S")
+                        end_time = end_dt.strftime("%Y-%m-%d %H:%M:%S")
+                        
+                        # Calculate duration
+                        duration_seconds = (end_dt - start_dt).total_seconds()
+                        
+                        if duration_seconds < 60:
+                            duration_str = f"{duration_seconds:.0f}s"
+                        elif duration_seconds < 3600:
+                            minutes = duration_seconds / 60
+                            duration_str = f"{minutes:.1f}m"
+                        else:
+                            hours = duration_seconds / 3600
+                            duration_str = f"{hours:.1f}h"
+                            
+                    except (ValueError, TypeError) as e:
+                        if args.debug:
+                            print(f"🔧 Error parsing dates for session {session_id}: {e}")
+                
+                # Calculate average amperage for color coding and session type
+                color_code = ""
+                reset_code = "\033[0m"
+                session_type = ""
+                
+                if session_kwh == 0:
+                    color_code = "\033[91m"  # Red for empty sessions
+                    session_type = " [EMPTY]"
+                elif 0 < session_kwh < display_micro_threshold:
+                    color_code = "\033[93m"  # Orange for microsessions
+                    session_type = " [MICRO]"
+                elif created_at and updated_at and session_kwh > 0:
+                    try:
+                        duration_hours = duration_seconds / 3600
+                        if duration_hours > 0:
+                            # Calculate average power in watts
+                            avg_power_watts = (session_kwh * 1000) / duration_hours
+                            # Calculate average amperage at 208V
+                            avg_amperage = avg_power_watts / 208
+                            
+                            if args.debug:
+                                print(f"    🔧 Session {i} calculations: {duration_hours:.2f}h, {avg_power_watts:.1f}W, {avg_amperage:.1f}A")
+                            
+                            # Color coding based on amperage
+                            if avg_amperage >= 16:
+                                color_code = "\033[92m"  # Green
+                                session_type = " [NORMAL-HIGH]"
+                            elif avg_amperage >= 8:
+                                color_code = "\033[93m"  # Orange/Yellow
+                                session_type = " [NORMAL-MED]"
+                            else:
+                                color_code = "\033[91m"  # Red
+                                session_type = " [NORMAL-LOW]"
+                        else:
+                            color_code = "\033[91m"  # Red for zero duration
+                            session_type = " [DURATION-ERROR]"
+                    except (ValueError, TypeError, ZeroDivisionError):
+                        color_code = "\033[91m"  # Red for calculation errors
+                        session_type = " [CALC-ERROR]"
+                else:
+                    color_code = "\033[91m"  # Red for missing data
+                    session_type = " [DATA-ERROR]"
+                
+                session_line = f"    Session {i}: START: {start_time} / END: {end_time} / DURATION: {duration_str} / {session_kwh} kWh / {session_id}{session_type}"
                 print(f"{color_code}{session_line}{reset_code}")
     
     # Export functionality (CSV or PDF)
@@ -868,22 +1378,63 @@ def main():
         analysis_type = "user"
         specific_user = None
         
-        if args.user:
-            # For user analysis, export all valid sessions with user data
+        if args.all:
+            # For --all flag, export all valid sessions with user analysis
+            valid_sessions = [s for s in sessions if isinstance(s, dict)]
+            sessions_to_export = valid_sessions
+            analysis_type = "all_sessions"
+            
+            if args.debug:
+                print(f"🔧 Exporting all {len(sessions_to_export)} sessions")
+        
+        elif args.user:
+            # For user analysis, determine which sessions to export based on combined flags
             valid_sessions = [s for s in sessions if isinstance(s, dict)]
             analysis_type = "user"
             
+            # Apply user filter first
             if args.user != "all":
                 # Filter to specific user
-                sessions_to_export = [s for s in valid_sessions if s.get("user", "null") == args.user]
+                user_filtered_sessions = [s for s in valid_sessions if s.get("user", "null") == args.user]
                 specific_user = args.user
                 if args.debug:
-                    print(f"🔧 Filtered {len(sessions_to_export)} sessions for user: {args.user}")
+                    print(f"🔧 Filtered to {len(user_filtered_sessions)} sessions for user: {args.user}")
             else:
-                # Export all user sessions
-                sessions_to_export = valid_sessions
+                # Use all user sessions
+                user_filtered_sessions = valid_sessions
                 if args.debug:
-                    print(f"🔧 Exporting {len(sessions_to_export)} sessions for all users")
+                    print(f"🔧 Using {len(user_filtered_sessions)} sessions for all users")
+            
+            # Apply empty/micro filters if specified
+            if args.empty or args.micro:
+                sessions_to_export = []
+                for session in user_filtered_sessions:
+                    session_kwh = session.get("session_kwh", 0)
+                    include_session = False
+                    
+                    if args.empty and session_kwh == 0:
+                        include_session = True
+                    if args.micro and micro_threshold and 0 < session_kwh < micro_threshold:
+                        include_session = True
+                    
+                    if include_session:
+                        sessions_to_export.append(session)
+                
+                # Update analysis type to reflect combined filtering
+                mode_desc = []
+                if args.empty:
+                    mode_desc.append("empty")
+                if args.micro:
+                    mode_desc.append("micro")
+                analysis_type = f"user_with_{'+'.join(mode_desc)}"
+                
+                if args.debug:
+                    print(f"🔧 Combined filtering resulted in {len(sessions_to_export)} sessions")
+            else:
+                # Export all user sessions without additional filtering
+                sessions_to_export = user_filtered_sessions
+                if args.debug:
+                    print(f"🔧 Exporting {len(sessions_to_export)} sessions without additional filtering")
         
         elif args.empty or args.micro:
             # For empty/micro analysis, export the relevant sessions
@@ -913,7 +1464,7 @@ def main():
             if args.csv:
                 success = export_to_csv(sessions_to_export, filename, args.debug)
             else:  # PDF
-                success = export_to_pdf(sessions_to_export, filename, analysis_type, specific_user, args.debug)
+                success = export_to_pdf(sessions_to_export, filename, analysis_type, specific_user, micro_threshold, args.debug)
             
             if success:
                 export_type = "CSV" if args.csv else "PDF"
@@ -926,7 +1477,7 @@ def main():
             print(f"⚠️  No sessions to export based on current filters")
     
     # If no analysis flags are used, just print all sessions
-    if not args.empty and not args.micro and not args.user:
+    if not args.empty and not args.micro and not args.user and not args.all:
         if args.debug:
             print(f"🔧 No analysis flags provided, outputting raw {len(sessions)} sessions...")
         print(json.dumps(sessions, indent=2))
