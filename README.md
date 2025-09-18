@@ -4,735 +4,480 @@
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Linux-lightgrey.svg)]()
 
-> **SESHIS** (*Session Statistics*) is a powerful command-line tool for analyzing electric vehicle (EV) charging session data from PowerFlex API endpoints. It provides comprehensive insights into charging patterns, identifies problematic sessions, analyzes user behavior, and generates visual reports to help optimize EV charging infrastructure performance.
+> **SESHIS** (*Session Statistics*) is a powerful command-line tool for analyzing electric vehicle (EV) charging session data from PowerFlex API endpoints. It provides comprehensive insights into charging patterns, identifies problematic sessions, analyzes user behavior, tracks unclaimed sessions, and generates professional visual reports to help optimize EV charging infrastructure performance.
 
-## 🌟 Features
+## 🌟 Key Features Overview
 
-### 📊 **Comprehensive Analysis**
-- **Empty Sessions Analysis**: Identify and analyze sessions with 0 kWh energy delivery
-- **Microsessions Analysis**: Detect sessions with minimal energy delivery (configurable threshold)
-- **User Session Analysis**: Analyze sessions grouped by user with detailed session information and performance metrics
-- **Combined Reports**: Get holistic view of charging session quality
-- **Daily Breakdowns**: Track performance trends over time
+### 📊 **What SESHIS Can Do For You**
+- **Identify Problem Sessions**: Find empty sessions (0 kWh) and microsessions (very low energy delivery)
+- **Analyze User Behavior**: See how different users interact with your charging stations
+- **Track Unclaimed Sessions**: Monitor sessions where users didn't scan QR codes first
+- **Generate Professional Reports**: Create PDF reports and CSV exports for stakeholders
+- **Visualize Trends**: Generate charts to spot patterns over time
+- **Performance Analysis**: Automatically calculate charging performance metrics
 
-### 📈 **Visual Reporting & Export**
-- **Interactive Graphs**: Generate matplotlib charts showing daily percentages
-- **Color-Coded Performance**: Visual indicators for session quality (Green/Orange/Red)
-- **Trend Analysis**: Visualize empty/micro session patterns over time
-- **Professional Charts**: Publication-ready graphs with proper formatting
-- **CSV Export**: Export session data to CSV files for spreadsheet analysis
-- **PDF Reports**: Generate professional PDF reports with color-coded sessions and logos
+### 🔓 **NEW: Unclaimed Sessions Tracking**
+One of the most important features is tracking **unclaimed sessions** - these are sessions where someone plugged in their vehicle without scanning the QR code with the app first. These sessions help identify:
+- User education opportunities
+- Signage effectiveness issues  
+- Sites that may need better QR code visibility
+- Potential revenue loss from untracked usage
 
-### 🛠️ **Flexible Configuration**
-- **Multiple Date Ranges**: Today, last week, last month, or custom date ranges
-- **Customizable Thresholds**: Set your own microsession energy thresholds
-- **User Filtering**: Analyze all users or focus on specific email addresses
-- **Streamlined Interface**: Use `--advanced` flag for full control or simplified defaults
-- **API Parameters**: Full control over sorting, pagination, and filtering
-- **Debug Mode**: Comprehensive logging for troubleshooting
+## 🚀 Quick Start Guide
 
-### 🚀 **Automation Ready**
-- **No-Prompt Mode**: Use `--printsessions` for automated workflows
-- **Streamlined Mode**: Default mode skips advanced prompts for faster execution
-- **Conditional Outputs**: Control exactly what gets displayed
-- **Color-Coded Results**: Visual performance indicators for quick assessment
-- **Script-Friendly**: Perfect for CI/CD pipelines and monitoring systems
+### Most Common Use Cases
+
+**1. Daily Site Health Check**
+```bash
+python3 seshis.py --all --pdf
+```
+*Generates a comprehensive PDF report showing all users, all session types, and unclaimed sessions*
+
+**2. Export Data for Spreadsheet Analysis**
+```bash
+python3 seshis.py --all --csv
+```
+*Exports complete session data to a timestamped CSV file*
+
+**3. Quick Problem Session Overview**
+```bash
+python3 seshis.py --empty --micro
+```
+*Shows summary of empty and microsession issues with statistics*
+
+**4. User Performance Analysis**
+```bash
+python3 seshis.py --user
+```
+*Color-coded analysis of all users including unclaimed sessions*
 
 ---
 
 ## 📋 Prerequisites
 
-### System Requirements
+### What You Need
 - **Python 3.6+**
-- **macOS** or **Linux**
-- **curl_device_manager.sh** script (for API authentication)
+- **curl_device_manager.sh** script (for PowerFlex API authentication)
+- **matplotlib** (`pip install matplotlib`) - for charts
+- **reportlab** (`pip install reportlab`) - for PDF reports (optional)
 
-### Python Dependencies
+### Quick Setup
 ```bash
-pip install matplotlib
-# Optional: For PDF export functionality
-pip install reportlab
-```
+# Install dependencies
+pip install matplotlib reportlab
 
-### External Dependencies
-- `curl_device_manager.sh` - Custom script for PowerFlex API authentication
-- Must be accessible in your PATH or same directory
+# Ensure authentication script is available
+which curl_device_manager.sh
+```
 
 ---
 
-## 🚀 Installation
+## 💡 Command Line Options
 
-1. **Clone or download** the script:
-   ```bash
-   wget https://github.com/FabersilloY/Session-History/seshis.py
-   chmod +x seshis.py
-   ```
-
-2. **Install Python dependencies**:
-   ```bash
-   pip install matplotlib
-   # Optional: For PDF export functionality
-   pip install reportlab
-   ```
-
-3. **Ensure curl_device_manager.sh is available**:
-   ```bash
-   # Should be in PATH or same directory
-   which curl_device_manager.sh
-   ```
-
----
-
-## 💡 Usage
-
-### Basic Syntax
-```bash
-python3 seshis.py [OPTIONS]
-```
-
-### 🎛️ Command Line Options
-
-| Flag | Description | Example |
+| Flag | What It Does | Example |
 |------|-------------|---------|
-| `--empty` | Analyze empty sessions (0 kWh) | `--empty` |
-| `--micro` | Analyze microsessions (0 < kWh < threshold) | `--micro` |
-| `--user` | Analyze sessions per user (optional: specify email) | `--user` or `--user user@example.com` |
-| `--advanced` | Enable advanced prompts (anonymize, sorting, etc.) | `--advanced` |
-| `--graph` | Generate and display visual charts | `--graph` |
-| `--printsessions` | Auto-print session details (no prompts) | `--printsessions` |
-| `--csv` | Export analysis to CSV file (requires analysis flag) | `--csv` |
-| `--pdf` | Export analysis to PDF report (requires analysis flag) | `--pdf` |
-| `--debug` | Enable comprehensive debug logging | `--debug` |
+| `--empty` | Find sessions with 0 kWh delivered | `--empty` |
+| `--micro` | Find sessions with very low energy (you set threshold) | `--micro` |
+| `--user` | Analyze sessions by user (optional: specify email) | `--user` or `--user john@example.com` |
+| `--all` | **NEW!** Complete analysis of all session types by user | `--all --pdf` |
+| `--csv` | Export data to spreadsheet file | `--empty --csv` |
+| `--pdf` | Generate professional PDF report | `--user --pdf` |
+| `--graph` | Show visual charts | `--empty --graph` |
+| `--advanced` | Enable all configuration options | `--advanced` |
+| `--debug` | Show detailed technical information | `--debug` |
+
+### ⚠️ Important Flag Rules
+- Export flags (`--csv`, `--pdf`) require at least one analysis flag
+- Can't use `--csv` and `--pdf` together (run separately)  
+- Can't use exports with `--graph` (run separately)
+- Use double dashes: `--pdf` not `-pdf`
 
 ---
 
-## 📖 Usage Examples
+## 📖 Real-World Usage Examples
 
-### 🔍 **Basic Analysis**
+### 🏢 **Daily Operations**
 
-**Empty Sessions Only**
+**Morning Site Report**
 ```bash
-python3 seshis.py --empty
+python3 seshis.py --all --pdf
 ```
-*Shows summary statistics and daily breakdown of sessions with 0 kWh delivery*
+*Perfect for daily management reports - shows everything in one professional document*
 
-**Microsessions Only**
-```bash
-python3 seshis.py --micro
-```
-*Prompts for threshold (e.g., 1.0 kWh) and analyzes sessions below that threshold*
-
-**User Session Analysis**
+**Quick Health Check**
 ```bash
 python3 seshis.py --user
 ```
-*Shows all users and their sessions with detailed information including duration and performance*
+*Fast overview of user activity with color-coded performance and unclaimed sessions*
 
-**Specific User Analysis**
+**Problem Investigation**
 ```bash
-python3 seshis.py --user vera.combatvet@gmail.com
+python3 seshis.py --empty --micro --debug
 ```
-*Shows only sessions for the specified user with color-coded performance indicators*
+*Detailed analysis when you need to investigate site issues*
 
-### 📊 **Combined Analysis**
+### 📊 **Data Analysis & Reporting**
 
-**Complete Quality Report**
+**Export for Spreadsheet Work**
+```bash
+python3 seshis.py --all --csv
+```
+*Complete dataset for Excel/Google Sheets analysis*
+
+**Weekly Trend Analysis**
 ```bash
 python3 seshis.py --empty --micro --graph
 ```
-*Comprehensive analysis with visual charts showing both empty and micro sessions*
+*Visual charts showing session quality trends over time*
 
-**User Performance Overview**
+**User-Specific Investigation**
 ```bash
-python3 seshis.py --user --debug
+python3 seshis.py --user problematic.user@domain.com --pdf
 ```
-*Color-coded user analysis with performance calculations and debug information*
+*Detailed report for specific user issues*
 
-**Automation-Ready Report**
+### 🔧 **Troubleshooting**
+
+**Site Performance Deep Dive**
 ```bash
-python3 seshis.py --empty --micro --printsessions
+python3 seshis.py --all --debug
 ```
-*Full analysis with automatic session detail output (no user prompts)*
+*Comprehensive analysis with technical details*
 
-### 🛠️ **Advanced Usage**
-
-**Advanced Configuration Mode**
+**Unclaimed Sessions Focus**
 ```bash
-python3 seshis.py --user --advanced
+python3 seshis.py --user
+# Look at the "🔓 UNCLAIMED SESSIONS" section at the bottom
 ```
-*Enables all configuration prompts for full control over API parameters*
-
-**Debug Mode**
-```bash
-python3 seshis.py --empty --micro --graph --debug
-```
-*Detailed logging showing API calls, data processing, and analysis steps*
-
-**Multi-User Performance Analysis**
-```bash
-python3 seshis.py --user --graph --debug
-```
-*Color-coded user analysis with performance calculations and debug information*
-
-**Export Analysis to CSV**
-```bash
-python3 seshis.py --empty --csv
-```
-*Exports empty session analysis to timestamped CSV file for spreadsheet analysis*
-
-**Generate PDF Report**
-```bash
-python3 seshis.py --user --pdf
-```
-*Creates professional PDF report with color-coded sessions and site branding*
-
-**Raw Session Data**
-```bash
-python3 seshis.py
-```
-*Outputs raw JSON session data without analysis*
-
-### 📄 **Export Examples**
-
-**Export Empty Sessions to CSV**
-```bash
-python3 seshis.py --empty --csv
-```
-*Analyzes empty sessions and exports results to timestamped CSV file*
-
-**Generate User Performance PDF**
-```bash
-python3 seshis.py --user --pdf
-```
-*Creates professional PDF report with color-coded user session analysis*
-
-**Combined Analysis PDF Report**
-```bash
-python3 seshis.py --empty --micro --pdf
-```
-*Comprehensive session quality analysis in professional PDF format*
-
-**Export Specific User Data**
-```bash
-python3 seshis.py --user user@example.com --csv
-```
-*Exports detailed session data for specific user to CSV file*
+*Specifically monitor sessions without QR code scans*
 
 ---
 
-## 📊 Export Formats
+## 🔓 Understanding Unclaimed Sessions
 
-### 📄 **CSV Export**
-Use the `--csv` flag to export session data for spreadsheet analysis:
-- **Automatic timestamping**: Files named with current timestamp (YYYY_MM_DD_HHMMSS.csv)
-- **Comprehensive data**: All session fields including calculated metrics
-- **Performance metrics**: Duration, amperage, and performance ratings
-- **Compatible analysis**: Works with --empty, --micro, and --user flags
+### What Are Unclaimed Sessions?
+Unclaimed sessions appear when someone:
+1. Plugs in their vehicle
+2. **Doesn't scan the QR code** with the app first
+3. Charging happens but isn't linked to a user account
 
-**CSV Fields Include:**
-- `session_id`, `user`, `session_kwh`, `created_at`, `updated_at`
-- `duration_seconds`, `duration_formatted`, `avg_amperage`, `performance_rating`
-- `parking_space`, `pfid`, `authorization_source`, `status`
-- `session_start_time`, `session_end_time`, `reporting_id`, `site`, `vehicle`, `cost_actual`
+### Why They Matter
+- **Revenue Impact**: Untracked usage may not be properly billed
+- **User Experience**: Indicates users aren't following proper procedures
+- **Site Issues**: High unclaimed percentages might mean poor signage or QR code visibility
+- **Education Opportunities**: Shows where user training is needed
 
-### 📋 **PDF Reports** 
-Use the `--pdf` flag to generate professional reports:
-- **Color-coded sessions**: Green/Orange/Red performance indicators based on charging amperage
-- **Site branding**: Automatic logo inclusion (if pf.jpg exists in script directory)
-- **Professional layout**: Landscape format with proper margins and spacing
-- **Detailed information**: Session times, durations, energy delivery, EVSE details, PFID, parking spaces
-- **User grouping**: Organized by user with session counts and summaries
-- **Smart formatting**: Null users handled gracefully, sessions sorted by user
-- **Performance metrics**: Visual color coding (Green: ≥16A, Orange: 8-15.9A, Red: <8A)
-- **Report header**: Site name, location, date range, generation timestamp
-
-### 🚫 **Export Restrictions**
-- Export flags require at least one analysis flag (--empty, --micro, or --user)
-- CSV and PDF flags cannot be used together
-- Export flags are incompatible with --graph (use separate runs)
-- PDF export requires reportlab library: `pip install reportlab`
+### How SESHIS Helps
+- **Always Visible**: Unclaimed sessions appear at the bottom of every user analysis
+- **Clear Statistics**: Shows breakdown of empty, micro, and normal unclaimed sessions
+- **Export Ready**: Unclaimed sessions are properly labeled in CSV and PDF exports
+- **Performance Analysis**: Same color-coded performance metrics applied
 
 ---
 
-## 🖥️ Interactive Configuration
+## 🎨 Understanding Color-Coded Performance
 
-When you run the script, you'll be prompted for various configuration options:
+When you see session details, they're color-coded based on charging performance:
 
-### 🏢 **Account Settings**
-```
-Enter ACN (default: 0021): [YOUR_ACN]
-Enter account (default: 16): [YOUR_ACCOUNT]
-```
+- **🟢 Green [NORMAL-HIGH]**: ≥16A average - Excellent charging
+- **🟡 Orange [NORMAL-MED]**: 8-15.9A average - Good charging  
+- **🔴 Red [NORMAL-LOW]**: <8A average - Poor performance, investigate
+- **🔴 Red [EMPTY]**: 0 kWh - Failed sessions
+- **🟡 Orange [MICRO]**: Very low energy - Partial sessions
 
-### 🔬 **Analysis Settings** *(if using --micro)*
-```
-Enter microsession threshold (kWh, e.g., 1.0): [THRESHOLD]
-```
-
-### ⚙️ **API Parameters**
-
-**Default Mode** *(streamlined - uses defaults)*:
-```
-Limit (default: 25): [NUMBER]
-Page (default: 1): [NUMBER]
-```
-*Automatically uses: anonymize=false, includeActive=false, sortBy=session_start_time, sortOrder=DESC*
-
-**Advanced Mode** *(when using --advanced flag)*:
-```
-Anonymize? (true/false, default: false): [true/false]
-Include active sessions? (true/false, default: false): [true/false]
-Sort by (default: session_start_time): [SORT_FIELD]
-Sort order (ASC/DESC, default: DESC): [ASC/DESC]
-Limit (default: 25): [NUMBER]
-Page (default: 1): [NUMBER]
-```
-
-### 📅 **Date Range Selection**
-```
-Date range options:
-1. Today
-2. Last week
-3. Last month
-4. Custom (enter dates manually)
-Choose date range (1-4, default: 1): [1-4]
-```
+### What This Tells You
+- **Lots of Red**: Potential hardware issues or user behavior problems
+- **Lots of Green**: Site is performing well
+- **Mixed Colors**: Normal variation, but trends matter
 
 ---
 
-## 📄 Sample Output
+## 📄 Sample Output Explained
 
-### 📊 Empty Sessions Analysis
-```
-📊 Total sessions returned: 1000 (filtered from 1000)
-⚡ Sessions with 0 kWh delivered: 651 (65.1% of total)
-
-📅 Daily breakdown:
-- 2025-09-07: 188 empty / 271 total (69.4%)
-- 2025-09-08: 91 empty / 169 total (53.8%)
-- 2025-09-09: 150 empty / 216 total (69.4%)
-- 2025-09-10: 154 empty / 236 total (65.3%)
-- 2025-09-11: 68 empty / 108 total (63.0%)
-```
-
-### 🔬 Microsessions Analysis
-```
-📊 Total sessions returned: 1000 (filtered from 1000)
-🔬 Microsessions (0 < kWh < 1.0): 3 (0.3% of total)
-
-📅 Daily breakdown:
-- 2025-09-07: 1 micro / 271 total (0.4%)
-- 2025-09-08: 0 micro / 169 total (0.0%)
-- 2025-09-09: 1 micro / 216 total (0.5%)
-- 2025-09-10: 1 micro / 236 total (0.4%)
-- 2025-09-11: 0 micro / 108 total (0.0%)
-```
-
-### 🎯 Combined Summary
-```
-==================================================
-🔍 COMBINED SUMMARY
-==================================================
-🏢 Site: Downtown Charging Hub
-📊 Total sessions analyzed: 1000
-⚡ Empty sessions (0 kWh): 651 (65.1%)
-🔬 Microsessions (0 < kWh < 1.0): 3 (0.3%)
-🎯 Combined (empty + micro): 654 (65.4%)
-✅ Normal sessions (>= 1.0 kWh): 346 (34.6%)
-```
-
-### 👥 User Session Analysis
-```
+### User Analysis Output
+```bash
 👥 User Session Summary:
 📊 Total unique users: 15
 
-User: null
-    Total sessions: 42
+User: john.doe@example.com (85.7% normal sessions)
+    Total sessions: 7
+    Empty sessions (0 kWh): 1 (14.3%)
+    Normal sessions (>= 1.0 kWh): 6 (85.7%)
 
-User: vera.combatvet@gmail.com
-    Total sessions: 8
-    Session 1: START: 2025-09-15 07:12:27 / END: 2025-09-15 07:13:13 / DURATION: 46.0s / 0.0221 kWh / 0101110106_2025-09-12...
-    Session 2: START: 2025-09-12 16:16:48 / END: 2025-09-13 00:44:54 / DURATION: 8.5h / 12.763 kWh / 0101110102_2025-08-20...
-    ...
+    Showing 7 sessions:
+    Session 1: START: 2025-09-15 08:30:15 / END: 2025-09-15 12:45:22 / DURATION: 4.3h / 8.5 kWh / session_id_123 [NORMAL-MED]
 
-User: john.doe@example.com
-    Total sessions: 3
-    Session 1: START: 2025-08-20 19:29:13 / END: 2025-08-21 00:21:03 / DURATION: 4.9h / 12.76309 kWh / 0101110102_2025-08-20...
-    ...
+🔓 UNCLAIMED SESSIONS (25.0% normal sessions)
+    These are sessions where users plugged in without scanning the QR code first
+    Total sessions: 12
+    Empty sessions (0 kWh): 8 (66.7%)
+    Normal sessions (>= 1.0 kWh): 3 (25.0%)
+    
+    Showing 12 unclaimed sessions:
+    Session 1: START: 2025-09-15 14:20:10 / END: 2025-09-15 14:20:45 / DURATION: 35.0s / 0 kWh / session_id_456 [EMPTY]
 ```
 
-### 📄 CSV Export Output
-```
-✅ CSV exported successfully: 2025_09_16_130558.csv
-📊 25 sessions exported
+### What This Means
+- **john.doe@example.com**: Good user with mostly successful sessions
+- **Unclaimed Sessions**: 12 sessions without QR scans, mostly failed (empty)
+- **Action Needed**: High empty rate in unclaimed suggests signage or hardware issues
+
+---
+
+## 📊 Export Options Explained
+
+### CSV Export (`--csv`)
+**Best For**: Detailed data analysis, spreadsheet work, automated processing
+
+**What You Get**:
+- Timestamped filename (2025_09_18_143022.csv)
+- All session fields (duration, performance, user info, etc.)
+- Unclaimed sessions clearly labeled as "🔓 UNCLAIMED SESSIONS"
+- Ready for Excel/Google Sheets
+
+**Example**:
+```bash
+python3 seshis.py --all --csv
+# Creates: 2025_09_18_143022.csv with complete data
 ```
 
-### 📋 PDF Export Output
-```
-⠋ Fetching session data from PowerFlex API...
-✅ Session data retrieved successfully
-🔧 Using logo: /Users/user/SCRIPTS/pf.jpg
-🔧 Logo added to PDF
-🔧 PDF exported successfully: 2025_09_16_130628.pdf
-✅ PDF exported successfully: 2025_09_16_130628.pdf
-📊 25 sessions exported
+### PDF Export (`--pdf`)
+**Best For**: Professional reports, management presentations, record keeping
+
+**What You Get**:
+- Professional landscape layout
+- Color-coded sessions (Green/Orange/Red indicators)
+- Site branding (if pf.jpg logo exists)
+- Unclaimed sessions with explanatory text
+- User grouping with statistics
+
+**Example**:
+```bash
+python3 seshis.py --all --pdf
+# Creates: 2025_09_18_143022.pdf with professional report
 ```
 
 ---
 
-## 🎨 Visual Reports
+## 🔧 Configuration Options
 
-When using the `--graph` flag, SESHIS generates professional matplotlib charts:
+### Basic Setup
+When you run the script, you'll be prompted for:
 
-### 📈 **Chart Features**
-- **Line plots** with data point markers
-- **Percentage-based** Y-axis for easy comparison
-- **Date-based** X-axis with proper formatting
-- **Grid lines** for enhanced readability
-- **Professional styling** ready for presentations
+```
+Enter ACN (default: 0021): [Press enter for default]
+Enter account (default: 16): [Press enter for default]
+```
 
-### 📊 **Chart Types**
-1. **Daily Empty Session Percentage** - Tracks empty session trends
-2. **Daily Microsession Percentage** - Shows low-energy session patterns
+### Date Range Selection
+```
+Date range options:
+1. Today
+2. Last week  
+3. Last month
+4. Custom (enter dates manually)
+Choose date range (1-4, default: 1): [Choose option]
+```
 
-### 🎨 **Color-Coded Session Analysis**
+### Analysis-Specific Options
 
-When using the `--user` flag, sessions are displayed with color coding based on charging performance:
+**For Microsession Analysis (`--micro`)**:
+```
+Enter microsession threshold (kWh, e.g., 1.0): 1.0
+```
+*Sessions below this threshold are considered "micro"*
 
-- **🟢 Green**: High performance sessions (≥16A average) - Optimal charging
-- **🟡 Orange**: Medium performance sessions (8-15.9A average) - Acceptable charging  
-- **🔴 Red**: Poor performance sessions (<8A average) - Potential issues
-
-**Performance Calculation**: 
-- Average Power = `kWh ÷ duration (hours)`
-- Average Amperage = `watts ÷ 208V`
-- Color assigned based on calculated amperage vs. minimum 8A fallback rate
+**For Advanced Mode (`--advanced`)**:
+Enables additional API configuration options for power users.
 
 ---
 
-## 🛡️ Error Handling
+## 🚨 Troubleshooting Common Issues
 
-SESHIS includes robust error handling for common issues:
+### "unrecognized arguments: -pdf"
+**Problem**: Using single dash instead of double dash
+**Solution**: Use `--pdf` not `-pdf`
 
-### 🔗 **API Connection Issues**
-- Validates curl_device_manager.sh availability
-- Handles network timeouts and connection failures
-- Provides clear error messages with debugging context
+### "curl_device_manager.sh not found"
+**Problem**: Authentication script not in PATH
+**Solution**: Place script in same directory as seshis.py or add to PATH
 
-### 📝 **Data Format Issues**
-- Handles both list and dict API response formats
-- Validates JSON parsing and data structure
-- Filters out malformed session records
+### "PDF export requires reportlab library"
+**Problem**: Missing PDF dependency
+**Solution**: `pip install reportlab`
 
-### 🔢 **Input Validation**
-- Validates numeric thresholds for microsession analysis
-- Handles invalid date formats gracefully
-- Provides user-friendly error messages
+### "--csv/--pdf requires at least one analysis flag"
+**Problem**: Trying to export without analysis
+**Solution**: Use `--empty`, `--micro`, `--user`, or `--all` with export flags
 
----
-
-## 🧪 Debug Mode
-
-Enable comprehensive logging with the `--debug` flag:
-
-### 🔍 **Debug Information Includes**
-- **Configuration**: All parsed command-line arguments
-- **API Calls**: Complete URLs and curl commands
-- **Data Processing**: JSON parsing, session extraction, filtering
-- **Analysis Steps**: Detailed breakdown of calculations
-- **Performance Metrics**: Amperage calculations for user sessions
-- **Error Context**: Full error details with stack traces
-
-### 💡 **Debug Example**
-```bash
-python3 seshis.py --user --debug
-```
-
-```
-🔧 Debug mode enabled
-🔧 Arguments parsed: {'user': 'all', 'empty': False, 'micro': False, 'advanced': False, 'graph': False, 'printsessions': False, 'debug': True}
-🔧 ACN: 0021, Account: 16
-🔧 Using default advanced options: anonymize=false, include_active=false, sort_by=session_start_time, sort_order=DESC
-🔧 Date range: 2025-09-16 00:00:00 to 2025-09-16 21:22:57.123456
-🔧 Starting user session analysis (filter: all)...
-🔧 Session 1 calculations: 8.47h, 2.6W, 0.01A
-🔧 Session 2 calculations: 4.90h, 2603.2W, 12.5A
-```
+### Script outputs raw JSON after export
+**Problem**: This was a bug that's been fixed
+**Solution**: Update to latest version - script should stop after showing "📊 X sessions exported"
 
 ---
 
-## 🔧 Troubleshooting
+## 📈 Team Workflows
 
-### ❌ **Common Issues**
-
-**1. "curl_device_manager.sh not found"**
+### For Site Managers
+**Daily Report**:
 ```bash
-# Ensure the script is in your PATH or current directory
-which curl_device_manager.sh
-# Or place it in the same directory as seshis.py
+python3 seshis.py --all --pdf
 ```
+*One-stop comprehensive site health report*
 
-**2. "Failed to parse JSON response"**
+### For Data Analysts  
+**Full Data Export**:
 ```bash
-# Run with debug to see raw response
-python3 seshis.py --empty --debug
+python3 seshis.py --all --csv
 ```
+*Complete dataset for detailed analysis*
 
-**3. "User 'email@domain.com' not found"**
+### For Operations Teams
+**Problem Investigation**:
 ```bash
-# Run --user without email to see available users
+python3 seshis.py --empty --micro --debug
+python3 seshis.py --user problematic.user@domain.com
+```
+*Targeted analysis for specific issues*
+
+### For Executive Reporting
+**Monthly Summary**:
+```bash
+# Set date range to "Last month" when prompted
+python3 seshis.py --all --pdf
+```
+*Professional monthly performance report*
+
+---
+
+## 🎯 Key Metrics to Monitor
+
+### Session Quality Metrics
+- **Empty Session %**: Should be <20% (high percentages indicate hardware issues)
+- **Microsession %**: Should be <5% (high percentages indicate user behavior issues)
+- **Normal Session %**: Should be >75% (indicates healthy site operation)
+
+### User Behavior Metrics
+- **Unclaimed Session %**: Should be <30% (high percentages indicate user education needs)
+- **Users with High Empty Rates**: May need individual support
+- **Performance Distribution**: Most sessions should be green/orange, not red
+
+### Site Performance Indicators
+- **Average Session Duration**: Varies by use case but consistency matters
+- **Performance Color Distribution**: More green/orange than red
+- **Daily Trends**: Consistent patterns vs. sudden changes
+
+---
+
+## 🔄 Recommended Monitoring Schedule
+
+### Daily (5 minutes)
+```bash
 python3 seshis.py --user
 ```
+*Quick health check and unclaimed session review*
 
-**4. "matplotlib not found"**
+### Weekly (15 minutes)
 ```bash
-pip install matplotlib
-```
-
-**5. "PDF export requires reportlab library"**
-```bash
-pip install reportlab
-```
-
-**6. "--csv/--pdf requires at least one analysis flag"**
-```bash
-# Export flags need an analysis flag - use one of:
-python3 seshis.py --empty --csv
-python3 seshis.py --micro --pdf
-python3 seshis.py --user --csv
-```
-
-### 🔍 **Getting Help**
-1. **Enable debug mode** with `--debug` for detailed logging
-2. **Check API connectivity** by running without analysis flags
-3. **Validate date ranges** - ensure they contain session data
-4. **Verify authentication** - ensure curl_device_manager.sh works independently
-
----
-
-## 📚 Flag Combination Guide
-
-### 🎯 **Flag Combinations & Behaviors**
-
-| Combination | Behavior | Use Case |
-|-------------|----------|----------|
-| `--empty` | Empty session analysis + daily breakdown | Basic empty session investigation |
-| `--micro` | Microsession analysis + threshold input | Basic microsession investigation |
-| `--user` | All users session analysis + color-coded performance | User behavior and performance analysis |
-| `--user email@domain.com` | Single user analysis + color-coded sessions | Individual user troubleshooting |
-| `--advanced` | Enables all configuration prompts | Full API parameter control |
-| `--empty --micro` | Both analyses + combined summary | Complete session quality assessment |
-| `--empty --graph` | Empty analysis + chart display | Visual empty session trends |
-| `--user --advanced` | User analysis + full configuration options | Advanced user performance analysis |
-| `--empty --printsessions` | Empty analysis + auto-print details | Automated empty session reporting |
-| `--user --debug` | User analysis + performance calculations shown | User performance troubleshooting |
-| `--empty --csv` | Empty analysis + CSV export | Spreadsheet-ready empty session data |
-| `--user --pdf` | User analysis + PDF report | Professional user performance report |
-| `--micro --csv` | Microsession analysis + CSV export | Spreadsheet-ready microsession data |
-| `--empty --micro --pdf` | Combined analysis + PDF report | Complete session quality PDF report |
-| `--debug` (with any combo) | Adds comprehensive debug logging | Troubleshooting and development |
-| *(no flags)* | Raw JSON session dump | Data export and integration |
-
----
-
-## 🔄 Workflow Examples
-
-### 📊 **Daily Monitoring Workflow**
-```bash
-# Morning report - check overnight session quality
-python3 seshis.py --empty --micro --graph > daily_report.log
-
-# User performance overview with color coding
-python3 seshis.py --user > user_performance.log
-
-# Generate professional PDF report for management
-python3 seshis.py --empty --micro --pdf
-
-# Export data for spreadsheet analysis
-python3 seshis.py --empty --csv
-python3 seshis.py --user --csv
-
-# Extract specific problematic sessions for investigation
-python3 seshis.py --empty --printsessions > empty_sessions.json
-```
-
-### 🔧 **Troubleshooting Workflow**
-```bash
-# Step 1: Check if API is working
-python3 seshis.py --debug
-
-# Step 2: Identify problematic users
-python3 seshis.py --user > user_overview.log
-
-# Step 3: Deep dive into specific user issues
-python3 seshis.py --user problematic.user@domain.com --debug
-
-# Step 4: Analyze specific issues with full debug info
-python3 seshis.py --empty --micro --debug > debug_output.log
-```
-
-### 📈 **Performance Analysis Workflow**
-```bash
-# Weekly trend analysis with graphs
+python3 seshis.py --all --pdf
 python3 seshis.py --empty --micro --graph
-
-# Generate comprehensive PDF performance report
-python3 seshis.py --user --pdf
-
-# User performance analysis with CSV export for deeper analysis
-python3 seshis.py --user --csv
-
-# Individual user deep dive with PDF report
-python3 seshis.py --user frequent.user@domain.com --pdf
-
-# Export all data types for comprehensive analysis
-python3 seshis.py --empty --csv
-python3 seshis.py --micro --csv
-python3 seshis.py --user --csv
 ```
+*Comprehensive report + trend analysis*
 
----
-
-## 📝 API Reference
-
-### 🔗 **PowerFlex Sessions API**
-
-**Endpoint**: `https://api.powerflex.io/v1/public/sessions/acn/{acn}`
-
-**Parameters**:
-- `acc` - Account ID
-- `anonymize` - Boolean for data anonymization
-- `includeActive` - Include active/ongoing sessions
-- `sortBy` - Field to sort by (default: session_start_time)
-- `sortOrder` - ASC or DESC
-- `limit` - Number of results per page
-- `page` - Page number for pagination
-- `date` - Date range filters (gte/lte with millisecond timestamps)
-
-**Response Format**:
-```json
-{
-  "rows": [
-    {
-      "session_id": "0021160501_2025-09-11...",
-      "reporting_id": 477544158,
-      "session_kwh": 5.3713,
-      "session_start_time": 1757623500418,
-      "session_end_time": 1757623500470,
-      "created_at": "2025-09-15T07:12:27.381Z",
-      "updated_at": "2025-09-15T07:13:13.838Z",
-      "status": "FINISHED",
-      "user": "user@example.com",
-      "vehicle": "2020 Tesla Model Y Performance AWD",
-      "site": "Site Name",
-      "cost_actual": 0.81,
-      ...
-    }
-  ],
-  "total_count": 1000,
-  "page": 1,
-  "limit": 25
-}
+### Monthly (30 minutes)
+```bash
+python3 seshis.py --all --csv
+# Analyze in spreadsheet for deeper insights
 ```
+*Full data export for detailed analysis*
+
+### As-Needed Troubleshooting
+```bash
+python3 seshis.py --all --debug
+```
+*When investigating specific issues*
 
 ---
 
-## 🎁 Pro Tips
+## 🆕 What's New in Latest Version
 
-### 💡 **Performance Tips**
-1. **Use smaller date ranges** for faster analysis of large datasets
-2. **Increase limit parameter** to reduce API calls for comprehensive analysis
-3. **Run without --graph** first to check data quality before generating charts
-4. **Use --debug selectively** - it produces verbose output
+### Major New Features
+- **🔓 Unclaimed Sessions**: Dedicated tracking and analysis
+- **📊 --all Flag**: Complete site analysis in one command
+- **🎨 Enhanced PDF Reports**: Better layout with unclaimed session explanations
+- **⚡ Fixed Export Issues**: Script properly stops after exports
+- **🏷️ Better Labeling**: Clear identification of unclaimed sessions
 
-### 🔧 **Automation Tips**
-1. **Skip --advanced flag** in automation to use streamlined defaults
-2. **Always use --printsessions** in scripts to avoid interactive prompts
-3. **Use --user for performance monitoring** without additional prompts
-4. **Use CSV export for data processing**: `seshis.py --empty --csv` for automated analysis
-5. **Use PDF export for reports**: `seshis.py --user --pdf` for automated reporting
-6. **Combine with cron jobs** for regular monitoring and report generation
-7. **Use specific date ranges** in automation rather than "today" for consistency
-8. **Separate export runs**: Don't combine --graph with export flags in automation
-
-### 📊 **Analysis Tips**
-1. **Start with --user** to identify problematic users and patterns
-2. **Use color coding** to quickly spot performance issues (red = investigate)
-3. **Start with --empty --micro** to get overview before diving deep
-4. **Use custom date ranges** to analyze specific incidents or time periods
-5. **Compare different thresholds** for microsession analysis to find optimal values
-6. **Look for patterns** in daily breakdowns to identify systematic issues
-7. **Use --debug with --user** to see amperage calculations for performance analysis
-8. **Export to CSV** for detailed spreadsheet analysis and data manipulation
-9. **Generate PDF reports** for professional presentations and record keeping
-10. **Use PDF for user reports** - color coding shows clearly in printed format
+### Improvements
+- **Better Error Messages**: More helpful troubleshooting information
+- **Improved Export Organization**: Clearer separation of session types
+- **Enhanced Documentation**: This comprehensive README
+- **Color-Coded Consistency**: Same performance indicators across all features
 
 ---
 
-## 🤝 Contributing
+## 💡 Pro Tips for Teams
 
-We welcome contributions! Here are ways you can help:
+### For New Users
+1. **Start with `--all --pdf`** - gives you complete overview
+2. **Pay attention to unclaimed sessions** - they're often overlooked but important
+3. **Use color coding** - red sessions need investigation
+4. **Export to CSV for detailed analysis** - easier than working with terminal output
 
-### 🐛 **Bug Reports**
-- Use debug mode to capture detailed logs
-- Include your command-line arguments and configuration
-- Provide sample API responses (with sensitive data removed)
+### For Power Users
+1. **Use `--debug` for troubleshooting** - shows exactly what's happening
+2. **Combine with cron jobs** for automated reporting
+3. **Use custom date ranges** for incident investigation
+4. **Export separate analysis types** when you need specific datasets
 
-### ✨ **Feature Requests**
-- Open an issue describing the desired functionality
-- Include use cases and expected behavior
-- Consider backward compatibility
-
-### 🔧 **Development**
-- Follow existing code style and patterns
-- Add debug logging for new features
-- Update documentation for new functionality
-
----
-
-## 📜 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+### For Managers
+1. **`--all --pdf` for stakeholder reports** - professional and comprehensive
+2. **Monitor unclaimed session percentages** - indicates user experience quality
+3. **Track trends over time** - sudden changes indicate issues
+4. **Use CSV exports for executive dashboards** - easier to integrate with other tools
 
 ---
 
-## 🙏 Acknowledgments
+## 📞 Getting Help
 
-- **PowerFlex API** - For providing the charging session data endpoints
-- **matplotlib** - For excellent charting capabilities
-- **Python Community** - For the robust ecosystem of tools and libraries
+### Quick Self-Help
+1. **Read the error message carefully** - they're designed to be helpful
+2. **Run with `--debug`** - shows detailed information about what went wrong
+3. **Check flag combinations** - some flags can't be used together
+4. **Verify file permissions** - especially for exports
 
----
-
-## 📞 Support
-
-For support, please:
-1. **Check this README** for common solutions
-2. **Run with `--debug`** to gather diagnostic information
-3. **Open an issue** with detailed information about your problem
-
----
-
-## 🆕 Recent Updates
-
-### Version 3.0 Features
-- **📄 CSV Export**: New `--csv` flag for spreadsheet-ready data export
-- **📋 PDF Reports**: New `--pdf` flag for professional report generation
-- **🎨 Enhanced PDF Styling**: Color-coded sessions with site branding
-- **📊 Comprehensive Data**: Export includes all session fields and calculated metrics
-- **🔧 Improved Error Handling**: Better handling of null/missing user data
-- **⚡ Progress Indicators**: Visual spinner during API data retrieval
-- **🏢 Automated Branding**: Logo inclusion in PDF reports (pf.jpg)
-
-### Version 2.0 Features
-- **🔥 User Analysis**: `--user` flag for per-user session analysis
-- **🎨 Color Coding**: Performance-based color indicators (Green/Orange/Red)
-- **⚡ Performance Metrics**: Automatic amperage calculation and assessment
-- **🚀 Streamlined UX**: `--advanced` flag for simplified daily usage
-- **📊 Enhanced Details**: Session start/end times with duration calculation
-- **🔍 Smart Filtering**: Filter to specific users or analyze all users
-- **⏱️ Duration Intelligence**: Smart duration formatting (seconds/minutes/hours)
+### Common Solutions
+- **Authentication issues**: Check curl_device_manager.sh
+- **Export problems**: Verify dependencies (matplotlib, reportlab)
+- **Flag errors**: Use double dashes (`--pdf` not `-pdf`)
+- **No data**: Check date ranges and API connectivity
 
 ---
 
-*Made with ❤️ for the EV charging community*
+*Made with ❤️ for the EV charging community by the PowerFlex team*
+
+---
+
+## 📚 Appendix: Complete Flag Reference
+
+### Analysis Flags
+- `--empty`: Analyze 0 kWh sessions
+- `--micro`: Analyze low-energy sessions (with threshold)
+- `--user`: Analyze by user (with optional email filter)
+- `--all`: Complete analysis of all session types
+
+### Export Flags  
+- `--csv`: Export to spreadsheet format
+- `--pdf`: Export to professional report format
+
+### Utility Flags
+- `--graph`: Generate visual charts
+- `--advanced`: Enable all configuration options  
+- `--printsessions`: Auto-print details (for automation)
+- `--debug`: Show technical information
+
+### Usage Rules
+- Export flags require analysis flags
+- Can't combine `--csv` and `--pdf`
+- Can't combine exports with `--graph`
+- Use double dashes for all flags
